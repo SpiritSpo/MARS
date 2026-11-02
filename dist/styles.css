@@ -10,3 +10,25 @@
 @media print{.sidebar,.topbar,.mobile-nav,.heading-actions,.footer,.toast,.skip-link{display:none!important}.layout{padding:0}.main{padding:0}.modal-overlay{position:static;background:none;display:block;padding:0;backdrop-filter:none}.modal{max-height:none;max-width:none;box-shadow:none;border-radius:0;overflow:visible}.modal-top,.modal-actions{display:none}.modal-content{padding:0}body:has(.modal) #app{display:none}.panel{break-inside:avoid}body{background:white}}
 
 .field label>input,.field label>select,.field label>textarea{display:block;margin-top:7px}
+
+
+/* MARS management dashboard and machine insights */
+.mars-upgrade{background:#fff;border:1px solid #dbe5f5;border-radius:12px;padding:20px;margin-bottom:22px;box-shadow:0 3px 18px #18335a0a}
+.mars-upgrade-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.mars-upgrade-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mars-upgrade-kpis>div{background:#f5f8fd;border:1px solid #e5ecf7;border-radius:9px;padding:15px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.mars-upgrade-kpis small,.mars-machine-insights small{color:#61718b;font-size:11px}
+.mars-upgrade-kpis strong{font-size:25px;line-height:1.2;color:#1d385f}
+.mars-upgrade-kpis span{font-size:10px;color:#8190a4}
+.mars-upgrade-rank{margin-top:18px}.mars-upgrade-rank h3{margin-bottom:10px}
+.mars-upgrade-rank-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mars-upgrade-rank-list button{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:1px solid #e8edf5;border-radius:7px;padding:11px;background:#fff;font-size:12px}
+.mars-upgrade-rank-list button:hover{background:#f4f8ff;border-color:#b9cff4}
+.mars-upgrade-rank-list button span:first-child{flex:1}.mars-upgrade-rank-list button b{white-space:nowrap}
+.mars-machine-demo{font-size:11px;color:#315c9e;background:#edf4ff;border-radius:6px;padding:9px 12px;margin-bottom:14px}
+.mars-machine-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:15px 0}
+.mars-machine-insights>div{background:#f4f7fb;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.mars-machine-insights strong{font-size:16px;color:#233c60}
+.mars-machine-disclaimer{font-size:11px;color:#7b8799;margin:0 0 12px}
+@media(max-width:900px){.mars-upgrade-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.mars-upgrade{padding:14px}.mars-upgrade-rank-list{grid-template-columns:1fr}.mars-upgrade-kpis strong{font-size:21px}.mars-machine-insights{grid-template-columns:repeat(2,minmax(0,1fr))}}
