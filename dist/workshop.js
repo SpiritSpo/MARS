@@ -15,7 +15,7 @@ function initializeWorkshop() {
     r.assignee ??= demoMechanics[r.machine === 'M008' ? 1 : 2];
     r.dueDate ??= r.date;
     r.createdAt ??= r.date + 'T09:00:00+03:00';
-    r.reportedBy ??= 'Демо · Диспетчер';
+    r.reportedBy ??= 'Демо · Менеджер';
     r.blocking ??= r.status === 'progress';
     r.photos ??= r.machine === 'M008' ? [{id:'demo-hydraulics',url:'./assets/demo-hydraulics.svg',name:'Условная схема неисправности'}] : [];
     r.history ??= [{at:r.createdAt,text:'Заявка создана · условный пример',by:r.reportedBy}];
