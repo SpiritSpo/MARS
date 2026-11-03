@@ -3,6 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <script>
+  (() => {
+    // Detect a changed entry document even when iOS opens the site from its Home Screen.
+    // Reload with a fresh URL; do not clear localStorage or user-entered demo data.
+    const key = 'mars-entry-fingerprint-v1';
+    let checking = false;
+    async function checkUpdate() {
+      if (checking || document.visibilityState === 'hidden') return;
+      checking = true;
+      try {
+        const url = new URL(location.href);
+        url.searchParams.set('_mars_check', Date.now().toString());
+        const response = await fetch(url.toString(), {cache:'no-store', credentials:'same-origin'});
+        if (!response.ok) return;
+        const html = await response.text();
+        const match = html.match(/<script\s+src="\.\/app\.js\?v=([^"]+)"/);
+        const version = match && match[1];
+        if (!version) return;
+        const old = sessionStorage.getItem(key);
+        sessionStorage.setItem(key, version);
+        if (old && old !== version) {
+          const fresh = new URL(location.href);
+          fresh.searchParams.set('_mars_refresh', Date.now().toString());
+          location.replace(fresh.toString());
+        }
+      } catch (_) { /* Offline: continue using the current page. */ }
+      finally { checking = false; }
+    }
+    addEventListener('pageshow', checkUpdate);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkUpdate();
+    });
+    setInterval(checkUpdate, 60000);
+  })();
+  </script>
   <meta name="theme-color" content="#13223b">
   <meta name="description" content="МАРС — МонАрх: анализ работы спецтехники. Демонстрационная система управления техникой ООО «МонАрх и М»: объекты, финансы и смены.">
   <title>МАРС · МонАрх и М — управление техникой</title>
