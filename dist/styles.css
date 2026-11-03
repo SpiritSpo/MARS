@@ -35,3 +35,11 @@
 
 /* MARS minimal brand mark: standalone M with orange orbit */
 .brand{align-items:center}.brand-logo{width:62px;height:62px;border-radius:16px;background:linear-gradient(145deg,#123b75,#07162d);margin-top:0;box-shadow:0 3px 12px #0002}.brand-logo svg{width:53px;height:53px}.mobile-brand{align-items:center}.mobile-brand .brand-logo{width:53px;height:53px;border-radius:14px}.mobile-brand .brand-logo svg{width:46px;height:46px}
+
+/* MARS brand identity */
+.brand{gap:11px}
+.brand-logo{width:49px;height:49px;border-radius:12px;background:#101e34;flex-shrink:0;margin-top:0}
+.brand-logo svg{width:43px;height:43px}
+.brand-copy{min-width:0}
+.brand-expansion strong{font-weight:800}
+@media(max-width:600px){.mobile-brand .brand-logo{width:49px;height:49px}.mobile-brand .brand-logo svg{width:43px;height:43px}}
