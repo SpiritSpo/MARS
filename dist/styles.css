@@ -32,3 +32,6 @@
 .mars-machine-disclaimer{font-size:11px;color:#7b8799;margin:0 0 12px}
 @media(max-width:900px){.mars-upgrade-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.mars-upgrade{padding:14px}.mars-upgrade-rank-list{grid-template-columns:1fr}.mars-upgrade-kpis strong{font-size:21px}.mars-machine-insights{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* MARS minimal brand mark: standalone M with orange orbit */
+.brand{align-items:center}.brand-logo{width:62px;height:62px;border-radius:16px;background:linear-gradient(145deg,#123b75,#07162d);margin-top:0;box-shadow:0 3px 12px #0002}.brand-logo svg{width:53px;height:53px}.mobile-brand{align-items:center}.mobile-brand .brand-logo{width:53px;height:53px;border-radius:14px}.mobile-brand .brand-logo svg{width:46px;height:46px}
