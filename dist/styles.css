@@ -32,3 +32,10 @@
 .mars-machine-disclaimer{font-size:11px;color:#7b8799;margin:0 0 12px}
 @media(max-width:900px){.mars-upgrade-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.mars-upgrade{padding:14px}.mars-upgrade-rank-list{grid-template-columns:1fr}.mars-upgrade-kpis strong{font-size:21px}.mars-machine-insights{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* MARS brand refresh: icon-only monogram, name and company beside it */
+.brand-logo{width:49px;height:49px;border-radius:12px;background:#101e34;margin-top:0}
+.brand-logo svg{width:43px;height:43px}
+.brand{gap:11px}
+.brand-expansion strong{font-weight:800}
+@media(max-width:600px){.mobile-brand .brand-logo{width:49px;height:49px}.mobile-brand .brand-logo svg{width:43px;height:43px}}
