@@ -39,12 +39,16 @@ function accountantParseRows(data){
  const rows=[],errors=[],seen=new Set(),existing=new Set(accountantImported().map(accountantFingerprint));
  data.slice(1).forEach((r,i)=>{
   if(!r.some(x=>String(x??'').trim()))return;
-  const raw=String(r[ix[1]]??'').trim(),m=machines.find(x=>x.id.toLowerCase()===raw.toLowerCase()||x.name.toLowerCase()===raw.toLowerCase());
+  const raw=String(r[ix[1]]??'').trim();
+  const matches=machines.filter(x=>[x.id,x.plate,x.serial,x.vin].filter(Boolean).some(v=>String(v).toLowerCase()===raw.toLowerCase()));
+  const m=matches.length===1?matches[0]:null;
+  const special=raw.toUpperCase()==='ОБЩЕХОЗ'?'overhead':raw.toUpperCase()==='СКЛАД'?'warehouse':'';
+  if(!raw||(!m&&!special)){errors.push('Строка '+(i+2)+': укажите точный идентификатор техники, ОБЩЕХОЗ или СКЛАД.');return;}
   const date=accountantDate(r[ix[0]]),category=String(r[ix[2]]??'').trim(),note=ix[4]>=0?String(r[ix[4]]??'').trim():'';
   const amountText=String(r[ix[3]]??'').replace(/[\s\u00a0\u202f₽]/g,'').replace(',','.');
   const amount=Number(amountText),line=i+2;
   if(!date||!category||!amountText||!Number.isFinite(amount)||amount<=0||amount>1e12){errors.push('Строка '+line+': неверная дата, статья или сумма');return;}
-  const item={id:uid(),machine:m?.id||'',importMachine:raw,kind:'expense',category,amount:Math.round(amount*100)/100,date,note,source:'excel-demo',allocation:m?'machine':'pending',importLine:line};
+  const item={id:uid(),machine:m?.id||'',importMachine:raw,kind:'expense',category,amount:Math.round(amount*100)/100,date,note,source:'excel-demo',allocation:m?'machine':special,importLine:line};
   const key=accountantFingerprint(item);
   if(seen.has(key)||existing.has(key)){errors.push('Строка '+line+': возможный дубль');return;}
   seen.add(key);rows.push(item);
@@ -55,7 +59,7 @@ function accountantPage(){
  const rows=accountantImported(),pending=rows.filter(o=>!o.machine&&o.allocation!=='overhead'),assigned=rows.filter(o=>!!o.machine),overhead=rows.filter(o=>o.allocation==='overhead'),history=accountantHistory();
  const tabs=[['upload','Загрузка файлов'],['allocation','Распределение расходов'],['history','История импортов']];
  return '<section class="panel padded"><h2>Бухгалтер · расходы из 1С</h2><p class="subtitle">Демонстрация: CSV / XLSX, без прямого подключения к 1С. Данные остаются только в этом браузере.</p><div class="filter-row">'+tabs.map(([id,label])=>'<button class="btn '+(accountantTab===id?'primary':'')+'" data-accountant-tab="'+id+'">'+label+'</button>').join('')+'</div>'+
- (accountantTab==='upload'?'<div class="info-note"><strong>Шаблон:</strong> Дата;Техника;Статья;Сумма;Комментарий. Техника: M001–M010 либо точное название. Пустая или неизвестная техника попадёт на распределение. Не загружайте реальные персональные и бухгалтерские данные.</div><p style="margin:18px 0"><button class="btn" id="accountant-sample">Скачать пример CSV</button> <label class="btn primary" for="accountant-file">Выбрать файл Excel / CSV</label><input type="file" id="accountant-file" accept=".csv,.xlsx" style="position:absolute;width:1px;height:1px;opacity:0"></p><div id="accountant-preview"></div>':
+ (accountantTab==='upload'?'<div class="info-note"><strong>Шаблон:</strong> Дата;Техника;Статья;Сумма;Комментарий. Техника: M001–M010 либо точное название. Пустая или неизвестная техника блокирует импорт. Для общих затрат укажите ОБЩЕХОЗ, для склада — СКЛАД. Не загружайте реальные персональные и бухгалтерские данные.</div><p style="margin:18px 0"><button class="btn" id="accountant-sample">Скачать пример CSV</button> <label class="btn primary" for="accountant-file">Выбрать файл Excel / CSV</label><input type="file" id="accountant-file" accept=".csv,.xlsx" style="position:absolute;width:1px;height:1px;opacity:0"></p><div id="accountant-preview"></div>':
  accountantTab==='allocation'?'<div class="stats"><article class="stat"><div class="stat-label">Ожидают распределения</div><div class="stat-value">'+pending.length+'</div></article><article class="stat"><div class="stat-label">Распределено на технику</div><div class="stat-value">'+assigned.length+'</div></article><article class="stat"><div class="stat-label">Общехозяйственные</div><div class="stat-value">'+overhead.length+'</div></article></div><p class="subtitle">Без распределения расход не относится на себестоимость машины.</p>'+(!rows.length?'<p>Импортов пока нет.</p>':rows.slice().reverse().map(o=>'<div class="info-note" style="margin:8px 0"><strong>'+esc(o.date)+' · '+esc(o.category)+' · '+rub(o.amount)+'</strong><div>'+esc(o.note||'Без комментария')+'</div><small>Исходная техника: '+esc(o.importMachine||'не указана')+' · '+esc(o.importFile||'файл')+'</small><div><select class="accountant-assign" data-id="'+esc(o.id)+'"><option value="">Без распределения</option>'+machines.map(m=>'<option value="'+esc(m.id)+'" '+(o.machine===m.id?'selected':'')+'>'+esc(m.id)+' · '+esc(m.name)+'</option>').join('')+'<option value="overhead" '+(o.allocation==='overhead'?'selected':'')+'>Общехозяйственный расход</option></select> <button class="btn accountant-assign-save" data-id="'+esc(o.id)+'">Сохранить распределение</button></div></div>').join('')):
  '<div class="stats"><article class="stat"><div class="stat-label">Загрузок</div><div class="stat-value">'+history.length+'</div></article><article class="stat"><div class="stat-label">Импортировано строк</div><div class="stat-value">'+rows.length+'</div></article><article class="stat"><div class="stat-label">Всего расходов</div><div class="stat-value">'+rub(accountantMoney(rows))+'</div></article></div>'+(!history.length?'<p class="subtitle">Журнал пока пуст. История новых загрузок будет появляться здесь.</p>':'<div class="table-scroll"><table class="data-table"><thead><tr><th>Дата загрузки</th><th>Файл</th><th>Строк</th><th>Сумма</th><th>Статус</th></tr></thead><tbody>'+history.slice().reverse().map(h=>'<tr><td>'+esc(new Date(h.at).toLocaleString('ru-RU'))+'</td><td>'+esc(h.file)+'</td><td>'+h.count+'</td><td>'+rub(h.total)+'</td><td>'+esc(h.status)+'</td></tr>').join('')+'</tbody></table></div>'))+
  '<p class="subtitle">Подтверждённые расходы по технике учитываются в разделе «Финансы» руководителя только на этом устройстве. Серверной базы и реальных прав доступа пока нет.</p></section>';
@@ -72,7 +76,7 @@ function accountantBind(){
   render();toast('Распределение сохранено.');
  });
  document.getElementById('accountant-sample')?.addEventListener('click',()=>{
-  const csv='Дата;Техника;Статья;Сумма;Комментарий\n2026-11-03;M001;Запчасти;12500;Фильтры\n2026-11-03;M002;Ремонт и ТО;34000;"Гидравлика; диагностика"\n2026-11-03;;Зарплата;85000;Распределить позже';
+  const csv='Дата;Техника;Статья;Сумма;Комментарий\n2026-11-03;M001;Запчасти;12500;Фильтры\n2026-11-03;M002;Ремонт и ТО;34000;"Гидравлика; диагностика"\n2026-11-03;ОБЩЕХОЗ;Аренда офиса;85000;Общие расходы';
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='mars-demo-1c.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
  });
  document.getElementById('accountant-file')?.addEventListener('change',async e=>{
