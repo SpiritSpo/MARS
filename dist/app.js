@@ -200,7 +200,7 @@ $('#request-add').onclick=()=>$('#request-items').insertAdjacentHTML('beforeend'
 $('#request-items').onclick=e=>{if(e.target.classList.contains('request-remove')&&document.querySelectorAll('.request-item').length>1)e.target.closest('.request-item').remove();};
 $('#request-form').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target),items=[...document.querySelectorAll('.request-item')].map(el=>{const v=n=>el.querySelector('[name="'+n+'"]').value;return {machine:v('machine'),operator:v('operator'),start:v('start'),end:v('end')};});
 if(items.some(x=>!x.machine||!x.operator||!x.start||!x.end||x.start>=x.end))return toast('Проверьте назначения и даты.');
-if(fd.get('status')!=='Отменена'&&!fd.has('releaseConfirmed')&&items.some(x=>machine(x.machine)?.status==='repair'))return toast('Назначение запрещено: техника на ремонте. Ожидайте подтверждения готовности механиком.');
+if(fd.get('status')!=='Отменена'&&items.some(x=>machine(x.machine)?.status==='repair'))return toast('Назначение запрещено: техника на ремонте. Ожидайте подтверждения готовности механиком.');
 if(fd.get('dispatchStage')==='Освобождена'&&!fd.has('releaseConfirmed'))return toast('Для освобождения техники подтвердите фактический возврат.');
 if(old&&!String(fd.get('changeReason')||'').trim())return toast('Укажите причину изменения заявки.');
 // Finished requests continue to reserve equipment until its actual release is confirmed.
