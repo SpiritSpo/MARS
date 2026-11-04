@@ -5,6 +5,22 @@ const accountantImported=()=>state.operations.filter(o=>o.source==='excel-demo')
 const accountantHistory=()=>Array.isArray(state.accountantImports)?state.accountantImports:(state.accountantImports=[]);
 const accountantFingerprint=o=>[o.date,o.category.trim().toLowerCase(),Number(o.amount).toFixed(2),String(o.note||'').trim().toLowerCase(),(Object.hasOwn(o,'importMachine')?o.importMachine:o.machine)||''].join('|');
 const accountantMoney=items=>items.reduce((s,x)=>s+Number(x.amount||0),0);
+// Fail closed on potentially duplicated repair costs: a mechanic's repair
+// completion already posts an expense. A different accounting document must
+// be reconciled before import rather than silently counted a second time.
+function accountantRepairConflict(o){
+ if(o.allocation!=='machine'||!o.machine)return null;
+ const repairCategory=/ремонт|\bто\b|запчаст|материал|сервис/i.test(o.category);
+ const repairOps=state.operations.filter(x=>x.sourceRepair&&x.kind==='expense'&&x.machine===o.machine);
+ return repairOps.find(x=>{
+  const sameAmount=Math.abs(Number(x.amount)-Number(o.amount))<0.005;
+  const sameDay=x.date===o.date;
+  const repairId=state.maintenance.find(r=>r.id===x.sourceRepair)?.number;
+  const referencesRepair=repairId&&String(o.note||'').toLowerCase().includes(repairId.toLowerCase());
+  return referencesRepair||(sameDay&&(sameAmount||repairCategory));
+ })||null;
+}
+
 const accountantCsvCell=s=>String(s??'').trim();
 function accountantParseCSV(text){
  const rows=[];let row=[],cell='',quoted=false;
@@ -51,6 +67,8 @@ function accountantParseRows(data){
   const item={id:uid(),machine:m?.id||'',importMachine:raw,kind:'expense',category,amount:Math.round(amount*100)/100,date,note,source:'excel-demo',allocation:m?'machine':special,importLine:line};
   const key=accountantFingerprint(item);
   if(seen.has(key)||existing.has(key)){errors.push('Строка '+line+': возможный дубль');return;}
+  const repairConflict=accountantRepairConflict(item);
+  if(repairConflict){errors.push('Строка '+line+': возможный повтор расходов ремонта, уже учтённых механиком ('+(state.maintenance.find(x=>x.id===repairConflict.sourceRepair)?.number||repairConflict.sourceRepair)+'). Требуется сверка.');return;}
   seen.add(key);rows.push(item);
  });
  return {rows,errors};
@@ -101,6 +119,7 @@ function accountantBind(){
    document.getElementById('accountant-confirm')?.addEventListener('click',()=>{
     const existing=new Set(accountantImported().map(accountantFingerprint));
     if(accountantPending.some(o=>existing.has(accountantFingerprint(o))))return toast('Дубли обнаружены. Повторно загрузите файл.');
+    if(accountantPending.some(accountantRepairConflict))return toast('Обнаружено возможное повторное включение расходов ремонта. Проверьте файл.');
     const snapshot=structuredClone(state),batch=uid();
     state.accountantImports??=[];
     const added=accountantPending.map(o=>({...o,importBatch:batch,importFile:accountantFileName}));
