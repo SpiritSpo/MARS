@@ -1,0 +1,22 @@
+name: MARS regression tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check dist/app.js
+          node --check dist/workshop.js
+          node --check dist/accountant.js
+      - name: Regression tests
+        run: node --test tests/*.test.cjs
