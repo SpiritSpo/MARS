@@ -10,7 +10,7 @@ const accountantMoney=items=>items.reduce((s,x)=>s+Number(x.amount||0),0);
 // be reconciled before import rather than silently counted a second time.
 function accountantRepairConflict(o){
  if(o.allocation!=='machine'||!o.machine)return null;
- const repairCategory=/ремонт|\bто\b|запчаст|материал|сервис/i.test(o.category);
+ const repairCategory=/ремонт|техобслуж|запчаст|материал|сервис/i.test(o.category);
  const repairOps=state.operations.filter(x=>x.sourceRepair&&x.kind==='expense'&&x.machine===o.machine);
  return repairOps.find(x=>{
   const sameAmount=Math.abs(Number(x.amount)-Number(o.amount))<0.005;
