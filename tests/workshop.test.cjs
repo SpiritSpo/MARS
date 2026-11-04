@@ -83,3 +83,29 @@ test('Photo rendering rejects arbitrary SVG and external URLs',()=>{
   assert.equal(a.run("validPhotoUrl('data:image/svg+xml;base64,PHN2Zz4=')"),false);
   assert.equal(a.run("validPhotoUrl('./assets/demo-hydraulics.svg')"),true);
 });
+
+
+test('Fleet status follows blocking repairs, reservations and approved shifts',()=>{
+ const a=app();
+ a.run("state.maintenance=[];state.equipmentRequests=[];state.shifts=[];syncMachineStatuses();");
+ assert.equal(a.run("machine('M001').status"),'free');
+ a.run("state.equipmentRequests.push({status:'Согласована',releaseConfirmed:false,items:[{machine:'M001',start:today(),end:today()}]});syncMachineStatuses();");
+ assert.equal(a.run("machine('M001').status"),'reserved');
+ a.run("state.shifts.push({machine:'M001',date:today(),hours:8,status:'pending'});syncMachineStatuses();");
+ assert.equal(a.run("machine('M001').status"),'reserved');
+ a.run("state.shifts.at(-1).status='approved';syncMachineStatuses();");
+ assert.equal(a.run("machine('M001').status"),'work');
+ a.run("state.maintenance.push({machine:'M001',blocking:true,readyConfirmed:false});syncMachineStatuses();");
+ assert.equal(a.run("machine('M001').status"),'repair');
+});
+
+test('Accounting import blocks potentially repeated mechanic repair expenses',()=>{
+ const a=app();
+ const fs=require('node:fs'),path=require('node:path');
+ a.run(fs.readFileSync(path.join(__dirname,'..','dist','accountant.js'),'utf8'));
+ a.run("state.operations.push({id:'repair-expense',machine:'M001',kind:'expense',category:'Ремонт и ТО',amount:35000,date:'2026-11-03',note:'ЗР-0099',sourceRepair:'repair-99'});state.maintenance.push({id:'repair-99',number:'ЗР-0099',machine:'M001'});");
+ const rows=[['Дата','Техника','Статья','Сумма','Комментарий'],['2026-11-03','M001','Ремонт и ТО','35000','ЗР-0099']];
+ const parsed=a.run('accountantParseRows('+JSON.stringify(rows)+')');
+ assert.equal(parsed.rows.length,0);
+ assert.match(parsed.errors.join(' '),/повтор расходов ремонта/);
+});
