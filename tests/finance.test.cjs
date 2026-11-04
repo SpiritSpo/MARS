@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
+const demoFixture=require('./fixtures/demo-state.cjs');
 
 function fixture(){
  const node=()=>({innerHTML:'',textContent:'',style:{},value:'',classList:{add(){},remove(){}},querySelectorAll(){return [];},addEventListener(){}});
@@ -15,6 +16,9 @@ function fixture(){
  const dir=path.join(__dirname,'..','dist');
  run(fs.readFileSync(path.join(dir,'workshop.js'),'utf8'));
  run(fs.readFileSync(path.join(dir,'app.js'),'utf8').replace(/\nrender\(\);\s*$/,''));
+ ctx.testFixture=structuredClone(demoFixture);
+ run('replaceState({...testFixture.state,machines:testFixture.machines,objects:testFixture.objects});initializeWorkshop();');
+ delete ctx.testFixture;
  run('render=()=>{};toast=()=>{};role="director";period="2027-01";state.operations=[];');
  return {run,ctx};
 }

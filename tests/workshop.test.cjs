@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
+const demoFixture=require('./fixtures/demo-state.cjs');
 
 function app() {
   const elements=new Map();
@@ -12,6 +13,9 @@ function app() {
   const root=path.join(__dirname,'..','dist');
   run(fs.readFileSync(path.join(root,'workshop.js'),'utf8'));
   run(fs.readFileSync(path.join(root,'app.js'),'utf8').replace(/\nrender\(\);\s*$/,''));
+  context.testFixture=structuredClone(demoFixture);
+  run('replaceState({...testFixture.state,machines:testFixture.machines,objects:testFixture.objects});initializeWorkshop();');
+  delete context.testFixture;
   run('render=()=>{};toast=()=>{};openRepair=()=>{};');
   return {run,elements,context};
 }
@@ -24,13 +28,14 @@ function close(a,values={}) {
   return form;
 }
 
-test('Migration preserves existing browser records and does not duplicate seeded history',()=>{
+test('Migration preserves existing browser records without injecting example repairs',()=>{
   const a=app();
-  a.run("state=initialState();state.operations.push({id:'preserved'});state.stock[0].qty=19;state.maintenance[0].status='done';initializeWorkshop();initializeWorkshop();");
+  a.run("state.maintenance=state.maintenance.filter(r=>r.id!=='service-demo-closed');delete state.workshopVersion;state.operations.push({id:'preserved'});state.stock[0].qty=19;state.maintenance[0].status='done';initializeWorkshop();initializeWorkshop();");
   assert.equal(a.run('state.operations[0].id'),'preserved');
   assert.equal(a.run('state.stock[0].qty'),19);
   assert.equal(a.run('state.maintenance[0].status'),'done');
-  assert.equal(a.run("state.maintenance.filter(r=>r.id==='service-demo-closed').length"),1);
+  assert.equal(a.run("state.maintenance.filter(r=>r.id==='service-demo-closed').length"),0);
+  assert.equal(a.run('state.maintenance.length'),3);
 });
 
 test('Completing a repair records one expense, issues parts once and preserves another stop',()=>{
@@ -66,7 +71,7 @@ test('Storage failure rolls back stock, finance and repair status together',()=>
 });
 
 test('A shift issue creates one linked repair while shift approval remains separate',()=>{
-  const a=app();a.run("role='operator';shiftModal();");
+  const a=app();a.run("state.operatorMachine='M001';role='operator';shiftModal();");
   const values={machine:'M001',date:a.run('today()'),hours:'8',meter:'1256',condition:'issue',note:'Тест: требуется проверить гидравлику'};
   let form=a.elements.get('#shift-form');form.values=values;form.onsubmit({target:form,preventDefault(){}});
   assert.equal(a.run("state.shifts.at(-1).status"),'pending');
