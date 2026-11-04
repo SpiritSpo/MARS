@@ -3,7 +3,7 @@
 let accountantPending=[],accountantTab='upload',accountantFileName='',accountantFileKey='';
 const accountantImported=()=>state.operations.filter(o=>o.source==='excel-demo');
 const accountantHistory=()=>Array.isArray(state.accountantImports)?state.accountantImports:(state.accountantImports=[]);
-const accountantFingerprint=o=>[o.date,o.category.trim().toLowerCase(),Number(o.amount).toFixed(2),String(o.note||'').trim().toLowerCase(),o.importMachine||o.machine||''].join('|');
+const accountantFingerprint=o=>[o.date,o.category.trim().toLowerCase(),Number(o.amount).toFixed(2),String(o.note||'').trim().toLowerCase(),(Object.hasOwn(o,'importMachine')?o.importMachine:o.machine)||''].join('|');
 const accountantMoney=items=>items.reduce((s,x)=>s+Number(x.amount||0),0);
 const accountantCsvCell=s=>String(s??'').trim();
 function accountantParseCSV(text){
