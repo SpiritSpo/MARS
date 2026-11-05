@@ -25,5 +25,6 @@ jobs:
         run: |
           node --check src/index.js
           node --check src/validation.js
+          node --check src/finance-import.js
       - name: Run finance validation tests
         run: npm test
