@@ -237,6 +237,7 @@ function openMachinePassport(id,tabName='passport') {
     <div><dt>Инвентарный номер</dt><dd>${esc(m.id)}</dd></div>
     <div><dt>Регистрационный номер</dt><dd>${esc(meta.registration || 'Не указано')}</dd></div>
     <div><dt>Серийный номер</dt><dd>${esc(meta.serial || 'Не указано')}</dd></div>
+    <div><dt>VIN</dt><dd>${esc(m.vin || 'Не указано')}</dd></div>
     <div><dt>Машинист</dt><dd>${esc(m.operator || 'Не назначен')}</dd></div>
     <div><dt>Последний счётчик</dt><dd>${meter}${meters.length?' м/ч':''}</dd></div>
     <div><dt>Ближайшее плановое ТО</dt><dd>${m.service?dateText(m.service):'Не указано'}</dd></div>

@@ -20,13 +20,13 @@ function dataSourceNote(entity){
 }
 function dataRegisterRows(entity,filter={}){return dataRows(entity).filter(r=>!filter.machineId||(r.machine||r.machineId)===filter.machineId);}
 function dataRegisterColumns(entity){
- if(entity==='objects')return [['id','Код объекта'],['name','Название'],['address','Адрес']];
- if(entity==='machines')return [['id','Код техники'],['name','Название'],['type','Тип'],['object','Объект'],['operatorId','Сотрудник'],['plate','Рег. номер']];
+ if(entity==='objects')return [['id','Код объекта'],['name','Название'],['address','Адрес'],['manager','Ответственный']];
+ if(entity==='machines')return [['id','Код техники'],['name','Название'],['type','Тип'],['object','Объект'],['operatorId','Сотрудник'],['plate','Рег. номер'],['serial','Заводской номер'],['vin','VIN'],['year','Год выпуска'],['meter','Счётчик']];
  if(entity==='employees')return [['id','Табельный номер'],['name','Сотрудник'],['position','Должность']];
- if(entity==='expenses')return [['date','Дата'],['machine','Техника / назначение'],['object','Объект'],['category','Статья'],['amount','Сумма']];
- if(entity==='payroll')return [['period','Период'],['employeeId','Сотрудник'],['machine','Техника'],['object','Объект'],['amount','Сумма']];
- if(entity==='timesheets')return [['date','Дата'],['employeeId','Сотрудник'],['machine','Техника'],['object','Объект'],['hours','Часы']];
- return [['date','Дата'],['documentId','Документ'],['employeeId','Сотрудник'],['machine','Техника'],['object','Объект'],['hours','Часы'],['meterStart','Счётчик до'],['meterEnd','Счётчик после']];
+ if(entity==='expenses')return [['date','Дата'],['machine','Техника / назначение'],['object','Объект'],['category','Статья'],['amount','Сумма'],['note','Комментарий']];
+ if(entity==='payroll')return [['period','Период'],['employeeId','Сотрудник'],['machine','Техника'],['object','Объект'],['amount','Сумма'],['note','Комментарий']];
+ if(entity==='timesheets')return [['date','Дата'],['employeeId','Сотрудник'],['machine','Техника'],['object','Объект'],['hours','Часы'],['note','Комментарий']];
+ return [['date','Дата'],['documentId','Документ'],['employeeId','Сотрудник'],['machine','Техника'],['object','Объект'],['hours','Часы'],['meterStart','Счётчик до'],['meterEnd','Счётчик после'],['note','Комментарий']];
 }
 function dataRegisterValue(row,key){
  const value=row[key];
