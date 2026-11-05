@@ -20,6 +20,9 @@ export function createDemoHandler({getUser}={}){
    // Financial totals and transactions are restricted to management and accounting.
    const view=structuredClone(state);
    if(!['director','owner','accountant'].includes(role))delete view.transactions;
+   if(!['director','owner','accountant'].includes(role)){
+    if(Array.isArray(view.parts))view.parts=view.parts.map(({unitCost,...part})=>part);
+   }
    if(role==='operator')delete view.parts;
    return reply(res,200,{...view,...(['director','owner'].includes(role)?{totals:demoTotals(state)}:{})});
   }
