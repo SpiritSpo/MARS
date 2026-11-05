@@ -15,7 +15,7 @@ const amount = v => {
 };
 const matchLabel = v => labels.find(([label])=>normalize(v).startsWith(label))?.[1] ?? null;
 const machineTitle = v => typeof v === 'string' && /[А-ЯA-Z]/i.test(v) && /\d/.test(v) &&
- !/итого|за (июль|август|сентябрь)|прибыль|часы/i.test(v);
+ !/итого|всего|за (июль|август|сентябрь)|прибыль|часы/i.test(v);
 
 export async function previewFinanceWorkbook(buffer,{period,resolveMachineId}={}){
  if(!Buffer.isBuffer(buffer)||!buffer.length||buffer.length>10*1024*1024)throw Error('Invalid workbook size');
@@ -46,7 +46,7 @@ export async function previewFinanceWorkbook(buffer,{period,resolveMachineId}={}
     if(!block){warnings.push({sheet:sheet.name,row:rowNumber,code:'orphan_financial_row'});continue;}
     const nextStart=blocks.filter(b=>!b.finished && b.start>block.start).reduce((n,b)=>Math.min(n,b.start),Infinity);
     const numeric=cells.filter(c=>c.col>item.col && c.col<=item.col+3 && c.col<nextStart)
-      .map(c=>amount(c.value)).find(v=>v!==null);
+      .map(c=>amount(c.value)).filter(v=>v!==null).at(-1);
     if(numeric===undefined)warnings.push({sheet:sheet.name,row:rowNumber,machine:block.name,code:'missing_amount',field:item.key});
     else block.values[item.key]=numeric;
    }
