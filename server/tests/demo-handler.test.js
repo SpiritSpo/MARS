@@ -41,3 +41,28 @@ test('director receives recalculated totals after action',async()=>{
  assert.equal(res.status,200);
  assert.deepEqual(res.body.totals,{revenue:445000,expenses:44000,profit:401000});
 });
+
+test('accountant previews and confirms fictional import once',async()=>{
+ const handler=createDemoHandler({getUser:async()=>({id:7,role:'accountant'})});
+ const rows=[{machineId:'JCB-DEMO-01',kind:'income',amount:1500,description:'Демо'}];
+ const preview=await call(handler,{method:'POST',url:'/demo/import/preview',body:{rows}});
+ assert.equal(preview.status,200);
+ assert.equal(preview.body.canCommit,true);
+ const confirm=await call(handler,{method:'POST',url:'/demo/import/confirm',body:{token:preview.body.token}});
+ assert.equal(confirm.status,200);
+ assert.equal(confirm.body.imported,1);
+ const repeated=await call(handler,{method:'POST',url:'/demo/import/confirm',body:{token:preview.body.token}});
+ assert.equal(repeated.status,400);
+ const state=await call(handler);
+ assert.equal(state.body.transactions.length,4);
+});
+test('mechanic cannot import and duplicate preview cannot commit',async()=>{
+ const mechanic=createDemoHandler({getUser:async()=>({id:8,role:'mechanic'})});
+ const denied=await call(mechanic,{method:'POST',url:'/demo/import/preview',body:{rows:[]}});
+ assert.equal(denied.status,403);
+ const accountant=createDemoHandler({getUser:async()=>({id:9,role:'accountant'})});
+ const row={machineId:'JCB-DEMO-01',kind:'income',amount:1500,description:'Демо'};
+ const preview=await call(accountant,{method:'POST',url:'/demo/import/preview',body:{rows:[row,row]}});
+ assert.equal(preview.body.canCommit,false);
+ assert.equal(preview.body.errors.length,1);
+});
