@@ -16,18 +16,18 @@ test('login, director access, logout and expired session',async()=>{
   throw Error('Unexpected query '+sql);
  }};
  const handler=createAuthHandler(pool,{now:()=>time});
- let res=response();await handler(request('GET','/finance/access-check'),res);assert.equal(res.status,401);
- res=response();await handler(request('POST','/auth/login',{login:'director',password:'bad'}),res);assert.equal(res.status,401);
- res=response();await handler(request('POST','/auth/login',{login:'director',password:'strong-demo-password-2026'}),res);assert.equal(res.status,200);
+ let res=response();await handler.handle(request('GET','/finance/access-check'),res);assert.equal(res.status,401);
+ res=response();await handler.handle(request('POST','/auth/login',{login:'director',password:'bad'}),res);assert.equal(res.status,401);
+ res=response();await handler.handle(request('POST','/auth/login',{login:'director',password:'strong-demo-password-2026'}),res);assert.equal(res.status,200);
  const cookie=res.headers['Set-Cookie'];assert.match(cookie,/HttpOnly/);
- res=response();await handler(request('GET','/finance/access-check',null,cookie),res);assert.equal(res.status,200);
+ res=response();await handler.handle(request('GET','/finance/access-check',null,cookie),res);assert.equal(res.status,200);
  time=new Date('2026-11-05T21:00:00Z');
- res=response();await handler(request('GET','/auth/me',null,cookie),res);assert.equal(res.status,401);
- res=response();await handler(request('POST','/auth/logout',null,cookie),res);assert.equal(res.status,200);
+ res=response();await handler.handle(request('GET','/auth/me',null,cookie),res);assert.equal(res.status,401);
+ res=response();await handler.handle(request('POST','/auth/logout',null,cookie),res);assert.equal(res.status,200);
 });
 test('non-director role cannot access finance',async()=>{
  const pool={query:async()=>({rows:[{id:'mechanic_1',role:'mechanic'}]})};
  const handler=createAuthHandler(pool);
- const res=response();await handler(request('GET','/finance/access-check',null,'mars_session='+'a'.repeat(64)),res);
+ const res=response();await handler.handle(request('GET','/finance/access-check',null,'mars_session='+'a'.repeat(64)),res);
  assert.equal(res.status,403);
 });
