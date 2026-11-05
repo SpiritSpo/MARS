@@ -16,7 +16,7 @@ export function reconcileFinance(records) {
   return records.map(record => {
     if (!record || typeof record !== 'object') throw new TypeError('Invalid record');
     const {machineId, month, sourceType, revenue, expenses, reportedProfit} = record;
-    if (typeof machineId !== 'string' || !machineId.trim() || !/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new TypeError('Invalid machine/month');
+    if (typeof machineId !== 'string' || !machineId.trim() || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new TypeError('Invalid machine/month');
     if (sourceType !== 'monthly' && sourceType !== 'format') throw new TypeError('Invalid source type');
     const key = machineId + '|' + month + '|' + sourceType;
     if (seen.has(key)) throw new Error('Duplicate source: ' + key);
