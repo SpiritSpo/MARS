@@ -49,7 +49,7 @@ export function createAuthHandler(pool,{secureCookies=true,now=()=>new Date()}={
    const user=await currentUser(req);
    try{canReadFinance(user)}catch{return json(res,user?403:401,{error:'Forbidden'})}
    const month=new URL(req.url,'http://localhost').searchParams.get('month');
-   if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month||''))return json(res,400,{error:'Invalid month'});
+   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month||''))return json(res,400,{error:'Invalid month'});
    const result=await pool.query('SELECT machine_id,month,revenue,expenses,reported_profit FROM mars_finance_monthly WHERE month=$1 ORDER BY machine_id',[month]);
    return json(res,200,{month,rows:result.rows});
   }
