@@ -1,4 +1,5 @@
 import {createSessionToken,sessionDigest,sessionCookie,clearSessionCookie,verifyPassword,canReadFinance} from './auth.js';
+import {createLoginLimiter} from './login-limiter.js';
 const json=(res,status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(body));};
 const parseCookie=header=>Object.fromEntries(String(header||'').split(';').map(x=>x.trim().split('=').slice(0,2)).filter(x=>x.length===2));
 async function readJson(req){
@@ -8,6 +9,7 @@ async function readJson(req){
 }
 export function createAuthHandler(pool,{secureCookies=true,now=()=>new Date()}={}){
  if(!pool||typeof pool.query!=='function')throw Error('Database required');
+ const limiter=createLoginLimiter();
  async function currentUser(req){
   const token=parseCookie(req.headers.cookie).mars_session;
   if(!token||!/^[a-f0-9]{64}$/.test(token))return null;
@@ -21,10 +23,13 @@ export function createAuthHandler(pool,{secureCookies=true,now=()=>new Date()}={
    let body;
    try{body=await readJson(req)}catch{return json(res,400,{error:'Invalid request'})}
    if(typeof body.login!=='string'||body.login.length>100||typeof body.password!=='string'||body.password.length>1024)return json(res,400,{error:'Invalid request'});
-   // Production gateway must rate-limit this endpoint; until then, do not deploy.
+   const key=String(req.socket?.remoteAddress||'unknown')+'|'+body.login.toLowerCase();
+   const limit=limiter.check(key);
+   if(!limit.allowed){res.setHeader('Retry-After',String(limit.retryAfter));return json(res,429,{error:'Too many attempts'});}
    const found=await pool.query('SELECT id,role,password_hash FROM mars_users WHERE login=$1 AND active=TRUE',[body.login]);
    const user=found.rows[0];
-   if(!user||!await verifyPassword(body.password,user.password_hash))return json(res,401,{error:'Invalid credentials'});
+   if(!user||!await verifyPassword(body.password,user.password_hash)){limiter.fail(key);return json(res,401,{error:'Invalid credentials'});}
+   limiter.clear(key);
    const token=createSessionToken();
    await pool.query('INSERT INTO mars_sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)',[sessionDigest(token),user.id,new Date(now().getTime()+8*60*60*1000)]);
    res.setHeader('Set-Cookie',sessionCookie(token,{secure:secureCookies}));
