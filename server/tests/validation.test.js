@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validateFinanceRows,money} from '../src/validation.js';
+const row=(overrides={})=>({machineId:'jcb_1',revenue:'1000.00',fuel:'100.00',repairs:'50.00',payroll:'150.00',otherExpenses:'0.00',reportedExpenses:'300.00',reportedProfit:'700.00',...overrides});
+test('valid row passes',()=>assert.equal(validateFinanceRows([row()],'2026-07')[0].reviewStatus,'ok'));
+test('zero profit with positive revenue is flagged',()=>assert.deepEqual(validateFinanceRows([row({reportedProfit:'0.00'})],'2026-07')[0].issues,['profit_mismatch']));
+test('component mismatch flagged',()=>assert.deepEqual(validateFinanceRows([row({reportedExpenses:'200.00'})],'2026-07')[0].issues,['expense_components_mismatch','profit_mismatch']));
+test('duplicate machine rejected',()=>assert.throws(()=>validateFinanceRows([row(),row()],'2026-07'),/duplicate/));
+test('invalid month rejected',()=>assert.throws(()=>validateFinanceRows([row()],'2026-13'),/period/));
+test('precision beyond kopeks rejected',()=>assert.throws(()=>money('1.001'),/money/));
+test('negative expenses rejected',()=>assert.throws(()=>validateFinanceRows([row({fuel:'-1.00'})],'2026-07'),/negative/));
