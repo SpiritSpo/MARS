@@ -7,7 +7,7 @@ function res(){return {headers:{},setHeader(k,v){this.headers[k]=v},writeHead(co
 test('login handler returns 429 after five failed attempts and does not query DB again',async()=>{
  let queries=0;
  const pool={query:async()=>{queries++;return {rows:[]}}};
- const handler=createAuthHandler(pool);
+ const handler=createAuthHandler(pool).handle;
  for(let i=0;i<5;i++){const out=res();await handler(req({login:'director',password:'incorrect'}),out);assert.equal(out.status,401);}
  const out=res();await handler(req({login:'director',password:'incorrect'}),out);
  assert.equal(out.status,429);
