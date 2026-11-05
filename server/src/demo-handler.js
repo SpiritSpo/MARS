@@ -1,5 +1,6 @@
 import {demoSeed,demoTotals,applyDemoAction} from './demo-domain.js';
 import {previewDemoImport} from './demo-import.js';
+import {parseDemoWorkbook} from './demo-xlsx.js';
 
 // Isolated fictional-data API. Must be mounted only behind authenticated sessions.
 // In-memory state is deliberately non-persistent and resets on server restart.
@@ -28,13 +29,18 @@ export function createDemoHandler({getUser}={}){
    if(role==='operator')delete view.parts;
    return reply(res,200,{...view,...(['director','owner'].includes(role)?{totals:demoTotals(state)}:{})});
   }
-  if(req.method==='POST'&&(path==='/demo/import/preview'||path==='/demo/import/confirm')){
+  if(req.method==='POST'&&(path==='/demo/import/preview'||path==='/demo/import/preview-xlsx'||path==='/demo/import/confirm')){
    if(!['accountant','director','owner'].includes(user.role))return reply(res,403,{error:'Forbidden'});
    const chunks=[];let bytes=0;
-   for await(const chunk of req){bytes+=chunk.length;if(bytes>131072)return reply(res,413,{error:'Request too large'});chunks.push(chunk);}
+   for await(const chunk of req){bytes+=chunk.length;if(bytes>3000000)return reply(res,413,{error:'Request too large'});chunks.push(chunk);}
    let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{return reply(res,400,{error:'Invalid JSON'})}
-   if(path==='/demo/import/preview'){
-    let preview;try{preview=previewDemoImport(body.rows,state.machines)}catch{return reply(res,400,{error:'Invalid rows'})}
+   if(path==='/demo/import/preview'||path==='/demo/import/preview-xlsx'){
+    let preview;try{
+     if(path==='/demo/import/preview-xlsx'){
+      if(typeof body.base64!=='string'||body.base64.length>2800000||! /^[A-Za-z0-9+/]+={0,2}$/.test(body.base64))throw Error('Invalid encoding');
+      preview=await parseDemoWorkbook(Buffer.from(body.base64,'base64'),state.machines);
+     }else preview=previewDemoImport(body.rows,state.machines);
+    }catch{return reply(res,400,{error:'Invalid spreadsheet or rows'})}
     const token=crypto.randomUUID();
     if(preview.canCommit)pending.set(token,{userId:user.id,role:user.role,rows:preview.valid,expires:Date.now()+600000});
     return reply(res,200,{token:preview.canCommit?token:null,validCount:preview.valid.length,errors:preview.errors,canCommit:preview.canCommit});
