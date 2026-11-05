@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS mars_finance_monthly (id BIGSERIAL PRIMARY KEY, machine_id TEXT NOT NULL, month TEXT NOT NULL, revenue NUMERIC(18,2) NOT NULL, expenses NUMERIC(18,2) NOT NULL, reported_profit NUMERIC(18,2) NOT NULL, source_file TEXT NOT NULL, source_sheet TEXT NOT NULL, imported_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS mars_finance_month_idx ON mars_finance_monthly(month);
