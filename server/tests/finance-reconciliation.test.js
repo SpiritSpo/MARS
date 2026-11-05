@@ -26,3 +26,6 @@ test('decimal money uses integer kopecks',()=>{
  const [row]=reconcileFinance([{machineId:'A',month:'2026-09',sourceType:'monthly',revenue:0.3,expenses:0.1,reportedProfit:0.2}]);
  assert.equal(row.discrepancy,0);
 });
+
+test('invalid month rejected',()=>{assert.throws(()=>reconcileFinance([{machineId:'A',month:'2026-13',sourceType:'monthly',revenue:1,expenses:0,reportedProfit:1}]),/Invalid machine\/month/);});
+test('no input mutation',()=>{const x=Object.freeze({machineId:'A',month:'2026-09',sourceType:'monthly',revenue:1,expenses:0,reportedProfit:1});reconcileFinance([x]);assert.equal(x.reportedProfit,1);});
