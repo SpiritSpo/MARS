@@ -1,19 +1,33 @@
 import http from 'node:http';
 import {Pool} from 'pg';
+import {createAuthHandler} from './auth-handler.js';
 
-// Minimal private API skeleton. No financial routes until authentication,
-// server-side machine mapping and import staging are implemented and tested.
+// Finance data must never be served without a database-backed session.
 const port=Number(process.env.PORT||3000);
 if(!Number.isInteger(port)||port<1||port>65535)throw Error('Invalid PORT');
-const pool=process.env.DATABASE_URL?new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSLMODE==='require'?{rejectUnauthorized:true}:undefined}):null;
+const pool=process.env.DATABASE_URL?new Pool({
+ connectionString:process.env.DATABASE_URL,
+ ssl:process.env.PGSSLMODE==='require'?{rejectUnauthorized:true}:undefined
+}):null;
+const auth=pool?createAuthHandler(pool,{secureCookies:process.env.NODE_ENV!=='test'}):null;
+const send=(res,status,body)=>{
+ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+ res.end(JSON.stringify(body));
+};
 const server=http.createServer(async(req,res)=>{
- res.setHeader('Content-Type','application/json; charset=utf-8');
- res.setHeader('Cache-Control','no-store');
- if(req.method==='GET'&&req.url==='/health'){
-  res.writeHead(200);res.end(JSON.stringify({status:'ok',databaseConfigured:!!pool}));return;
+ try{
+  const path=new URL(req.url,'http://localhost').pathname;
+  if(req.method==='GET'&&path==='/health')return send(res,200,{status:'ok',databaseConfigured:!!pool});
+  if(path.startsWith('/auth/')||path==='/finance/access-check'){
+   if(!auth)return send(res,503,{error:'Service not configured'});
+   return await auth(req,res);
+  }
+  return send(res,404,{error:'Not found'});
+ }catch(error){
+  console.error('MARS API request failed:',error);
+  if(!res.headersSent)send(res,500,{error:'Internal server error'});
+  else res.destroy();
  }
- // Never expose finance data without an authenticated API.
- res.writeHead(404);res.end(JSON.stringify({error:'Not found'}));
 });
 server.listen(port,()=>console.log('MARS API listening on '+port));
 const shutdown=async()=>{server.close();if(pool)await pool.end();};
