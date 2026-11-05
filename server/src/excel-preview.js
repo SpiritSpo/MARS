@@ -24,8 +24,12 @@ export async function previewFinanceWorkbook(buffer,{period,resolveMachineId}={}
  const workbook=new ExcelJS.Workbook();
  await workbook.xlsx.load(buffer);
  const candidates=[],warnings=[];
+ const monthNames=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+ const expectedMonth=Number(period.slice(5,7));
  for(const sheet of workbook.worksheets){
   const blocks=[];
+  const sheetMonth=monthNames.findIndex(m=>normalize(sheet.name).includes(m));
+  if(sheetMonth>=0 && sheetMonth+1!==expectedMonth)warnings.push({sheet:sheet.name,code:'sheet_period_mismatch',expectedPeriod:period});
   sheet.eachRow((row,rowNumber)=>{
    const cells=[];
    row.eachCell({includeEmpty:false},(cell,col)=>cells.push({col,value:cell.value}));
