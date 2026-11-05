@@ -18,7 +18,7 @@ const server=http.createServer(async(req,res)=>{
  try{
   const path=new URL(req.url,'http://localhost').pathname;
   if(req.method==='GET'&&path==='/health')return send(res,200,{status:'ok',databaseConfigured:!!pool});
-  if(path.startsWith('/auth/')||path==='/finance/access-check'){
+  if(path.startsWith('/auth/')||path==='/finance/access-check'||path==='/finance/report'){
    if(!auth)return send(res,503,{error:'Service not configured'});
    return await auth(req,res);
   }
