@@ -53,6 +53,10 @@ window.MARS_DIRECTOR_DEMO = (() => {
         })
       ];
     }));
+    // Showcase an already-confirmed accountant import without adding expenses twice.
+    const imported=operations.filter(o=>o.date==='2026-11-01'&&o.kind==='expense'&&o.category==='Запчасти'&&['M001','M002','M003'].includes(o.machine));
+    for(const o of imported){o.source='excel-demo';o.importBatch='demo-accountant-batch';o.importFile='демо-расходы-1С.xlsx';o.importMachine=o.machine;o.allocation='machine';}
+    const accountantImports=[{id:'demo-accountant-batch',at:day+'T09:00:00.000Z',file:'демо-расходы-1С.xlsx',count:imported.length,total:imported.reduce((n,o)=>n+o.amount,0),status:'Импортировано',demo:true}];
     const shifts=[
       {id:'shift-101',machine:'M001',date:'2026-11-01',hours:8,meter:1248,condition:'ok',note:'Замечаний нет',status:'pending'},
       {id:'shift-102',machine:'M002',date:day,hours:8,meter:3828,condition:'ok',note:'Работа на объекте',status:'pending'},
@@ -85,7 +89,7 @@ window.MARS_DIRECTOR_DEMO = (() => {
         {id:'demo-stock-1',date:isoDay(day,-3),part:'part-2',kind:'receipt',qty:40,machine:'',note:'Учебное поступление'},
         {id:'demo-stock-2',date:isoDay(day,-1),part:'part-3',kind:'issue',qty:1,machine:'M001',note:'Учебная выдача'}
       ],
-      equipmentRequests,purchaseRequests,machinePhotos:{},operatorMachine:'M001'
+      equipmentRequests,purchaseRequests,accountantImports,machinePhotos:{},operatorMachine:'M001'
     };
   }
   return {version:'director-full-v1',createState,objects,expectedMachineCount:fleet.length};
