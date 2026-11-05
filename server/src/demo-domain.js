@@ -13,7 +13,8 @@ export const demoSeed = Object.freeze({
   ],
   shifts: [
     {id:'SHIFT-01',machineId:'JCB-DEMO-01',objectId:'OBJ-01',hours:8,status:'closed'},
-    {id:'SHIFT-02',machineId:'CRANE-DEMO-01',objectId:'OBJ-03',hours:7,status:'closed'}
+    {id:'SHIFT-02',machineId:'CRANE-DEMO-01',objectId:'OBJ-03',hours:7,status:'closed'},
+    {id:'SHIFT-03',machineId:'JCB-DEMO-01',objectId:'OBJ-01',hours:0,status:'open'}
   ],
   parts: [{id:'PART-01',name:'Фильтр гидравлический',quantity:6,unitCost:2100}],
   repairs: [{id:'REPAIR-01',machineId:'MINI-DEMO-01',status:'open',description:'Плановое обслуживание'}],
