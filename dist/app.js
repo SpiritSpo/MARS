@@ -91,16 +91,6 @@ if(!directorDemoMode&&!storageLoadError&&storedWorkingData!==null){
   }catch{storageAvailable=false;catalogCleanupError=true;}
  }
 }
-// Populate only a genuinely empty demo workspace. Existing browser records,
-// including financial operations, are never replaced or merged with samples.
-const directorDemo=window.MARS_DIRECTOR_DEMO;
-if(!storageLoadError&&directorDemo&&state.machines.length===0&&state.objects.length===0&&
-   ['operations','shifts','maintenance','stock','stockMoves'].every(k=>state[k].length===0)){
- const exampleOperators=['Алексей Морозов','Михаил Иванов','Армен Петросян','Владимир Смирнов','Роман Козлов','Павел Павлов','Иван Петров','Александр Егоров','Сергей Фёдоров','Виктор Николаев'];
- const seeded={...state,objects:directorDemo.objects.map(o=>({...o})),machines:directorDemo.machines.map((m,i)=>({...m,operator:'Демо · '+exampleOperators[i],status:'unknown'}))};
- try{localStorage.setItem(storageKey,JSON.stringify(seeded));state=seeded;storedWorkingData=JSON.stringify(seeded);}
- catch{storageAvailable=false;state=seeded;}
-}
 function validMarsState(value){
  return Boolean(value&&value.version===1&&['machines','objects','operations','shifts','maintenance','stock','stockMoves'].every(k=>Array.isArray(value[k])));
 }
