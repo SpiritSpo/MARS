@@ -4,7 +4,7 @@ import {parseDemoWorkbook} from './demo-xlsx.js';
 
 // Isolated fictional-data API. Must be mounted only behind authenticated sessions.
 // In-memory state is deliberately non-persistent and resets on server restart.
-export function createDemoHandler({getUser}={}){
+export function createDemoHandler({getUser,store}={}){
  if(typeof getUser!=='function')throw Error('Authenticated user resolver required');
  let state=structuredClone(demoSeed);
  const pending=new Map();
@@ -21,6 +21,7 @@ export function createDemoHandler({getUser}={}){
    if(!['director','owner','accountant','mechanic','dispatcher','operator'].includes(role))
     return reply(res,403,{error:'Forbidden'});
    // Financial totals and transactions are restricted to management and accounting.
+   if(store)state=await store.read();
    const view=structuredClone(state);
    if(!['director','owner','accountant'].includes(role))delete view.transactions;
    if(!['director','owner','accountant'].includes(role)){
@@ -38,8 +39,8 @@ export function createDemoHandler({getUser}={}){
     let preview;try{
      if(path==='/demo/import/preview-xlsx'){
       if(typeof body.base64!=='string'||body.base64.length>2800000||! /^[A-Za-z0-9+/]+={0,2}$/.test(body.base64))throw Error('Invalid encoding');
-      preview=await parseDemoWorkbook(Buffer.from(body.base64,'base64'),state.machines);
-     }else preview=previewDemoImport(body.rows,state.machines);
+      preview=await parseDemoWorkbook(Buffer.from(body.base64,'base64'),(store?await store.read():state).machines);
+     }else preview=previewDemoImport(body.rows,(store?await store.read():state).machines);
     }catch{return reply(res,400,{error:'Invalid spreadsheet or rows'})}
     const token=crypto.randomUUID();
     if(preview.canCommit)pending.set(token,{userId:user.id,role:user.role,rows:preview.valid,expires:Date.now()+600000});
@@ -48,7 +49,9 @@ export function createDemoHandler({getUser}={}){
    const item=pending.get(body.token);
    if(!item||item.userId!==user.id||item.role!==user.role||item.expires<Date.now())return reply(res,400,{error:'Invalid or expired preview'});
    pending.delete(body.token);
-   for(const row of item.rows)state=applyDemoAction(state,user.role,{type:'addTransaction',...row});
+   const applyRows=current=>item.rows.reduce((next,row)=>applyDemoAction(next,user.role,{type:'addTransaction',...row}),current);
+   if(store)state=await store.update(applyRows);
+   else state=applyRows(state);
    return reply(res,200,{ok:true,imported:item.rows.length});
   }
   if(req.method==='POST'&&path==='/demo/actions'){
@@ -61,7 +64,8 @@ export function createDemoHandler({getUser}={}){
    let action;
    try{action=JSON.parse(Buffer.concat(chunks).toString('utf8'))}
    catch{return reply(res,400,{error:'Invalid JSON'})}
-   try{state=applyDemoAction(state,user.role,action)}
+   try{if(store)state=await store.update(current=>applyDemoAction(current,user.role,action));
+    else state=applyDemoAction(state,user.role,action)}
    catch(e){return reply(res,e.message==='Forbidden'?403:400,{error:e.message==='Forbidden'?'Forbidden':'Invalid action'})}
    return reply(res,200,{ok:true});
   }
