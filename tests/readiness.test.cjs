@@ -20,7 +20,7 @@ function workspace(saved={},options={}) {
   FormData:class {constructor(form){this.values=form.values;}get(key){return this.values[key]??'';}has(key){return key in this.values;}}
  });
  const run=source=>vm.runInContext(source,context);
- for(const name of ['workshop.js','accountant.js','app.js']) {
+ for(const name of ['workshop.js','accountant.js','import-engine.js','import-ui.js','app.js']) {
   const source=fs.readFileSync(path.join(__dirname,'..','dist',name),'utf8');
   run(name==='app.js'?source.replace(/\nrender\(\);\s*$/,''):source);
  }

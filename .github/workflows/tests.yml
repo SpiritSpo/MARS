@@ -18,5 +18,7 @@ jobs:
           node --check dist/app.js
           node --check dist/workshop.js
           node --check dist/accountant.js
+          node --check dist/import-engine.js
+          node --check dist/import-ui.js
       - name: Regression tests
         run: node --test tests/*.test.cjs

@@ -4,3 +4,50 @@
 @media(max-width:760px){.workshop-attention{margin-bottom:17px}.decision-list{padding:0 15px 5px}.decision-row{gap:9px;flex-wrap:wrap;position:relative;padding:14px 0 14px 42px}.decision-symbol{position:absolute;left:0;top:15px;width:30px;height:30px;border-radius:7px}.decision-copy{flex-basis:100%}.decision-copy b{font-size:11px}.decision-copy small{font-size:10px}.decision-row>.icon{margin-left:auto}.workshop-intro{align-items:flex-start;gap:9px}.workshop-intro p{font-size:11px;line-height:1.7}.workshop-counts{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:17px}.workshop-count{display:flex;padding:14px}.workshop-count small{font-size:11px}.workshop-count strong{font-size:25px;margin:0}.repair-grid{grid-template-columns:1fr;gap:13px}.repair-title{font-size:16px}.repair-card-meta{gap:8px}.repair-card-meta b{font-size:11px}.repair-card-bottom .btn{min-height:36px}.passport-hero{grid-template-columns:100px minmax(0,1fr);gap:14px;margin-bottom:15px}.passport-image{min-height:100px}.passport-image>img{height:105px}.passport-identity h2{font-size:21px;margin-top:8px}.passport-identity .demo-badge{font-size:8px;white-space:normal}.passport-identity>p{font-size:10px}.passport-tags{margin:9px 0}.passport-location{font-size:10px;align-items:flex-start}.passport-tabs{gap:22px}.passport-tabs button{font-size:12px;padding:13px 0}.passport-specs{column-gap:14px}.passport-actions{justify-content:space-between}.passport-actions .btn{white-space:normal}.passport-document{flex-wrap:wrap;gap:11px;padding:15px}.passport-document>.icon-wrap{display:none}.passport-document .btn{width:100%}.repair-detail-title{font-size:21px}.repair-gallery{grid-template-columns:1fr 1fr}.repair-photo img{max-height:230px}.photo-picker{padding:13px}.photo-picker input{font-size:11px}.photo-previews{gap:7px}.photo-preview .btn{font-size:10px;padding:6px}.workshop-update{padding:15px;margin-top:20px}.workshop-update .form-grid{grid-template-columns:1fr}.workshop-checkbox{font-size:11px}.repair-part-row{grid-template-columns:1fr 1fr;gap:8px;padding:13px}.repair-part-row>div{grid-column:1/-1}.repair-part-row input{font-size:16px;padding:10px}.repair-total-preview strong{font-size:21px}.passport-request{gap:8px}.passport-request small{font-size:9px}.passport-request>.tag{white-space:normal}.modal .passport-specs dd{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.workshop-history *{scroll-behavior:auto}}
 @media print{.passport-tabs,.passport-actions,.passport-photo-control,.workshop-update,.workshop-complete{display:none!important}.passport-hero{grid-template-columns:160px 1fr}.repair-photo img{max-height:220px}}
+
+/* Workshop text and controls share the readable sizes of the main screens. */
+.decision-copy b,.workshop-intro p,.repair-description,.workshop-history b,
+.repair-part-row b,.passport-location,.passport-identity>p,.passport-request b{font-size:14px}
+.decision-copy small,.workshop-count small,.repair-number,.repair-card-meta span,
+.repair-photo figcaption,.photo-picker>small,.workshop-history small,
+.repair-result small,.repair-part-row small,.repair-part-row label,
+.passport-photo-control>small,.passport-request small,.passport-document p{font-size:12px;color:var(--muted)}
+.repair-description,.repair-card-meta span,.passport-identity>p,
+.passport-location,.passport-document p{color:var(--muted)}
+.repair-machine-link{font-size:14px!important;min-height:44px}
+.repair-machine-link span{color:var(--muted)}
+.repair-card-meta b{font-size:14px;color:#465974}
+.repair-title{min-height:44px}
+.repair-card-bottom>div{font-size:12px}
+.repair-card-bottom{flex-wrap:wrap}
+.repair-card-bottom .btn{min-height:44px}
+.photo-label{font-size:14px}
+.photo-picker input{font-size:14px}
+.photo-picker input::file-selector-button{min-height:44px}
+.workshop-checkbox{font-size:14px;min-height:44px;align-items:center}
+.workshop-checkbox input{width:20px;height:20px;margin:0}
+.repair-result p{font-size:14px;color:#3d6851}
+.repair-part-row input{min-height:44px;font-size:16px}
+.repair-total-preview{font-size:14px;gap:12px;flex-wrap:wrap}
+.passport-hero{grid-template-columns:220px minmax(0,1fr)}
+.passport-identity{min-width:0}.passport-identity h2{overflow-wrap:anywhere}
+.passport-tags{flex-wrap:wrap}
+.passport-tabs button{font-size:14px;min-height:44px;color:var(--muted)}
+.passport-document h3{font-size:16px}
+.passport-document>div{min-width:0;overflow-wrap:anywhere}
+.passport-actions{flex-wrap:wrap}
+@media(max-width:760px){
+ .workshop-count{min-width:0;flex-wrap:wrap}
+ .workshop-count small{font-size:13px;overflow-wrap:anywhere}
+ .passport-hero{grid-template-columns:100px minmax(0,1fr)}
+ .passport-identity .demo-badge{font-size:12px}
+ .photo-picker input{font-size:14px}
+ .photo-preview .btn{font-size:13px;min-height:44px}
+ .repair-card-bottom .btn{flex:1 1 140px;white-space:normal}
+ .modal .passport-specs dd{font-size:14px}
+}
+@media(max-width:370px){
+ .passport-hero{grid-template-columns:1fr}
+ .passport-image{max-width:180px}
+ .repair-gallery,.photo-previews{grid-template-columns:1fr}
+}

@@ -4,7 +4,7 @@
 const repairStatusNames = {new:'Новая',planned:'Запланирована',progress:'В работе',waiting:'Ожидает запчасти',done:'Завершена'};
 const repairStatusColors = {new:'red',planned:'blue',progress:'orange',waiting:'orange',done:'green'};
 const repairUnassigned = 'Не назначен';
-const repairAssignees = () => [repairUnassigned,...new Set(['Демо · Механик № 1','Демо · Механик № 2',...state.maintenance.map(r => r.assignee)].filter(name => name && name !== repairUnassigned))];
+const repairAssignees = () => [repairUnassigned,...new Set(['Демо · Механик № 1','Демо · Механик № 2',...(state.employees || []).filter(e => /механик|слесар/i.test(e.position || '')).map(e => e.name),...state.maintenance.map(r => r.assignee)].filter(name => name && name !== repairUnassigned))];
 const workshopFilters = {status:'open',machine:'all',search:''};
 
 function initializeWorkshop() {
@@ -40,7 +40,7 @@ function recordRepairEvent(r,text) {
 }
 
 function saveWorkshop(previous) {
-  try { if(storageLoadError)throw Error('Stored data must be recovered first');localStorage.setItem(storageKey,JSON.stringify(state));storageAvailable=true;syncMachineStatuses();return true; } catch { storageAvailable=false; }
+  try { if(storageLoadError)throw Error('Stored data must be recovered first');const encoded=JSON.stringify(state);localStorage.setItem(storageKey,encoded);storedWorkingData=encoded;storageAvailable=true;syncMachineStatuses();return true; } catch { storageAvailable=false; }
   replaceState(previous);
   syncMachineStatuses();
   formError('Не удалось сохранить в браузере. Уменьшите число фотографий или освободите место. Данные не изменены.');
@@ -198,10 +198,19 @@ function completeRepairForm(id) {
     if(![labor,external].every(n=>Number.isFinite(n)&&n>=0&&n<=999999999))return formError('Проверьте суммы затрат.');
     const parts=[];
     for(const p of state.stock){const qty=Number(f.get('qty-'+p.id)),price=Number(f.get('price-'+p.id));if(!Number.isFinite(qty)||qty<0||qty>p.qty||(p.unit==='шт.'&&!Number.isInteger(qty)))return formError('Проверьте количество: '+p.name);if(!Number.isFinite(price)||price<0||price>999999999)return formError('Проверьте цену: '+p.name);if(qty>0)parts.push({id:p.id,name:p.name,unit:p.unit,qty,price:Math.round(price*100)/100});}
-    const previous=structuredClone(state),date=today();
+    const date=today();
+    const total=Math.round(repairTotal({laborCost:Math.round(labor*100)/100,externalCost:Math.round(external*100)/100,parts})*100)/100;
+    const normalized=value=>String(value || '').normalize('NFC').trim().toLocaleLowerCase('ru-RU');
+    const number=normalized(r.number);
+    const conflict=total>0&&state.operations.find(op=>op.kind==='expense'&&
+      (op.source==='excel-demo'||op.importSource?.entity==='expenses')&&
+      !['warehouse','overhead'].includes(op.allocation)&&normalized(op.machine)===normalized(r.machine)&&
+      ((number&&normalized(op.note).includes(number))||
+        (op.date===date&&(/ремонт|техобслуж|запчаст|материал|сервис/i.test(op.category || '')||Math.abs(Number(op.amount)-total)<0.005))));
+    if(conflict)return formError('Возможный повтор уже загруженного расхода по этой машине. Сверьте исходный документ '+(conflict.importSource?.documentId || conflict.id)+'. Ремонт, склад и расходы не изменены.');
+    const previous=structuredClone(state);
     Object.assign(r,{status:'done',blocking:r.blocking,readyConfirmed:!r.blocking,completedAt:new Date().toISOString(),resultNote:result,laborCost:Math.round(labor*100)/100,externalCost:Math.round(external*100)/100,parts});
     for(const p of parts){const stock=state.stock.find(x=>x.id===p.id);stock.qty=Math.round((stock.qty-p.qty)*100)/100;state.stockMoves.push({id:uid(),part:p.id,qty:p.qty,kind:'issue',machine:r.machine,date,note:`Ремонт ${r.number}`,sourceRepair:r.id});}
-    const total=Math.round(repairTotal(r)*100)/100;
     if(total>0){const op={id:uid(),machine:r.machine,kind:'expense',category:'Ремонт и ТО',amount:total,date,note:`${r.number} · ${r.type}`,sourceRepair:r.id};state.operations.push(op);r.financeOperationId=op.id;}
     recordRepairEvent(r,'Ремонт завершён: '+result+(total>0?' · учтено '+rub(total):''));
     if(!saveWorkshop(previous))return;closeModal(false);render();openRepair(r.id);toast(r.blocking?'Ремонт завершён. Для допуска техники подтвердите исправность.':'Работы завершены. История, склад и затраты обновлены.');
@@ -209,7 +218,7 @@ function completeRepairForm(id) {
 }
 
 function passportMetadata(m) {
-  return {registration:m.registration || '',serial:m.serial || ''};
+  return {registration:m.plate || m.registration || '',serial:m.serial || ''};
 }
 
 function machineIllustration() {
@@ -220,7 +229,7 @@ function openMachinePassport(id,tabName='passport') {
   const m=visibleMachines().find(x=>x.id===id);if(!m)return;
   if(tabName==='finance'&&!canFinance())tabName='passport';
   const meta=passportMetadata(m),requests=visibleRepairs().filter(r=>r.machine===id),s=sums([m]);
-  const tabs=[['passport','Паспорт'],['history','История'],['documents','Документы'],...(canFinance()?[['finance','Экономика']]:[])];
+  const tabs=[['passport','Паспорт'],['history','История'],['documents','Документы'],...(typeof machineImportedDataHtml==='function'?[['imports','Загруженные данные']]:[]),...(canFinance()?[['finance','Экономика']]:[])];
   const image=state.machinePhotos?.[id]?.[0];
   const meters=[m.meter,...state.shifts.filter(x=>x.machine===id&&x.status==='approved').map(x=>x.meter)].filter(hasAmount);
   const meter=meters.length ? Math.max(...meters).toLocaleString('ru-RU') : 'Не указано';
@@ -232,13 +241,14 @@ function openMachinePassport(id,tabName='passport') {
     <div><dt>Последний счётчик</dt><dd>${meter}${meters.length?' м/ч':''}</dd></div>
     <div><dt>Ближайшее плановое ТО</dt><dd>${m.service?dateText(m.service):'Не указано'}</dd></div>
     <div><dt>Открытых заявок</dt><dd>${requests.filter(r=>r.status!=='done').length}</dd></div>
-  </dl><div class="passport-photo-control"><label class="btn" for="passport-photo">${icon('plus')}Добавить фото</label><input class="sr-only-input" id="passport-photo" type="file" accept="image/jpeg,image/png,image/webp"><small>Фото хранится в этом браузере.</small><div id="form-error" class="error-text" role="alert"></div></div>`:tabName==='history'?passportHistory(m,requests):tabName==='documents'?passportDocuments(m):passportFinance(m,s);
+  </dl><div class="passport-photo-control"><label class="btn" for="passport-photo">${icon('plus')}Добавить фото</label><input class="sr-only-input" id="passport-photo" type="file" accept="image/jpeg,image/png,image/webp"><small>Фото хранится в этом браузере.</small><div id="form-error" class="error-text" role="alert"></div></div>`:tabName==='history'?passportHistory(m,requests):tabName==='documents'?passportDocuments(m):tabName==='imports'?machineImportedDataHtml(id):passportFinance(m,s);
   showModal('Паспорт техники',`<div class="passport-hero"><div class="passport-image">${image&&validPhotoUrl(image.url)?`<img src="${esc(image.url)}" alt="Фото ${esc(machineLabel(m.id))}">`:machineIllustration()}</div><div class="passport-identity">${m.demo?'<span class="demo-badge">Образец карточки · данные не подтверждены</span>':''}<h2>${esc(machineLabel(m.id))}</h2><p>${esc(m.type || 'Тип не указан')}${m.year?' · '+esc(m.year)+' г.':''}</p><div class="passport-tags">${machineTag(m)}${tag(m.id,'blue')}</div><span class="passport-location">${icon('objects')}${esc(objectLabel(m.object))}</span></div></div><div class="passport-tabs" role="tablist" aria-label="Разделы паспорта">${tabs.map(([key,title])=>`<button type="button" role="tab" id="passport-tab-${key}" aria-selected="${tabName===key}" aria-controls="passport-panel" tabindex="${tabName===key?'0':'-1'}" data-passport-tab="${key}" class="${tabName===key?'active':''}">${title}</button>`).join('')}</div><div role="tabpanel" id="passport-panel" aria-labelledby="passport-tab-${tabName}" tabindex="0">${details}${tabName==='passport'?`<div class="passport-open-requests"><h3>Обслуживание и ремонт</h3>${requests.filter(r=>r.status!=='done').map(r=>`<button class="passport-request" data-passport-repair="${r.id}"><span><b>${esc(r.type)}</b><small>${esc(r.number)} · ${dateText(r.dueDate)} · ${esc(r.assignee)}</small></span>${repairTag(r)}${icon('chevron')}</button>`).join('')||'<p class="form-hint">Открытых заявок пока нет.</p>'}</div>`:''}</div><div class="modal-actions passport-actions"><button class="btn" data-close>Закрыть</button>${canManageRepairs()?`<button class="btn primary" id="passport-new-repair">${icon('plus')}Заявка на ремонт</button>`:''}</div>`,true);
   document.querySelectorAll('[data-passport-tab]').forEach(b=>{
     b.onclick=()=>{openMachinePassport(id,b.dataset.passportTab);$('#passport-tab-'+b.dataset.passportTab).focus();};
     b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const pos=tabs.findIndex(t=>t[0]===tabName),next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(pos+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;openMachinePassport(id,tabs[next][0]);$('#passport-tab-'+tabs[next][0]).focus();};
   });
   document.querySelectorAll('[data-passport-repair]').forEach(b=>b.onclick=()=>openRepair(b.dataset.passportRepair));
+  if(typeof bindDataRegisterExports==='function')bindDataRegisterExports();
   $('#passport-new-repair')?.addEventListener('click',()=>repairForm(id));
   $('#passport-photo')?.addEventListener('change',async e=>{
     const file=e.target.files[0];if(!file)return;const input=e.target;input.disabled=true;
