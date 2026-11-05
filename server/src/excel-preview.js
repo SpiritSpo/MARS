@@ -20,6 +20,7 @@ const machineTitle = v => typeof v === 'string' && /[А-ЯA-Z]/i.test(v) && /\d/
 export async function previewFinanceWorkbook(buffer,{period,resolveMachineId}={}){
  if(!Buffer.isBuffer(buffer)||!buffer.length||buffer.length>10*1024*1024)throw Error('Invalid workbook size');
  if(typeof resolveMachineId!=='function')throw Error('Machine resolver required');
+ if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(period))throw Error('Invalid period');
  const workbook=new ExcelJS.Workbook();
  await workbook.xlsx.load(buffer);
  const candidates=[],warnings=[];
