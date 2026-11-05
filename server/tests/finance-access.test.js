@@ -22,7 +22,7 @@ function database(role){
 const validCookie='mars_session='+('a'.repeat(64));
 for(const [role,expected] of [[null,401],['dispatcher',403],['mechanic',403],['operator',403],['accountant',403],['director',200],['owner',200]]){
  test('finance access-check role '+String(role),async()=>{
-  const handler=createAuthHandler(database(role));
+  const handler=createAuthHandler(database(role)).handle;
   const res=response();
   await handler(request('/finance/access-check',validCookie),res);
   assert.equal(res.status,expected);
@@ -30,12 +30,12 @@ for(const [role,expected] of [[null,401],['dispatcher',403],['mechanic',403],['o
  });
 }
 test('finance rejects missing session before database lookup',async()=>{
- const handler=createAuthHandler({async query(){throw Error('Database should not be called')}});
+ const handler=createAuthHandler({async query(){throw Error('Database should not be called')}}).handle;
  const res=response();await handler(request('/finance/access-check'),res);
  assert.equal(res.status,401);
 });
 test('finance rejects malformed session before database lookup',async()=>{
- const handler=createAuthHandler({async query(){throw Error('Database should not be called')}});
+ const handler=createAuthHandler({async query(){throw Error('Database should not be called')}}).handle;
  const res=response();await handler(request('/finance/access-check','mars_session=bad'),res);
  assert.equal(res.status,401);
 });
