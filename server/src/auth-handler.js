@@ -17,7 +17,7 @@ export function createAuthHandler(pool,{secureCookies=true,now=()=>new Date()}={
    WHERE s.token_hash=$1 AND s.expires_at > $2 AND u.active=TRUE`,[sessionDigest(token),now()]);
   return result.rows[0]||null;
  }
- return async function authHandler(req,res){
+ async function authHandler(req,res){
   const path=new URL(req.url,'http://localhost').pathname;
   if(path==='/auth/login'&&req.method==='POST'){
    let body;
@@ -60,4 +60,5 @@ export function createAuthHandler(pool,{secureCookies=true,now=()=>new Date()}={
   }
   return json(res,404,{error:'Not found'});
  }
+ return {handle:authHandler,currentUser};
 }
