@@ -1,10 +1,12 @@
 import {demoSeed,demoTotals,applyDemoAction} from './demo-domain.js';
+import {previewDemoImport} from './demo-import.js';
 
 // Isolated fictional-data API. Must be mounted only behind authenticated sessions.
 // In-memory state is deliberately non-persistent and resets on server restart.
 export function createDemoHandler({getUser}={}){
  if(typeof getUser!=='function')throw Error('Authenticated user resolver required');
  let state=structuredClone(demoSeed);
+ const pending=new Map();
  const reply=(res,status,body)=>{
   res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
   res.end(JSON.stringify(body));
@@ -25,6 +27,23 @@ export function createDemoHandler({getUser}={}){
    }
    if(role==='operator')delete view.parts;
    return reply(res,200,{...view,...(['director','owner'].includes(role)?{totals:demoTotals(state)}:{})});
+  }
+  if(req.method==='POST'&&(path==='/demo/import/preview'||path==='/demo/import/confirm')){
+   if(!['accountant','director','owner'].includes(user.role))return reply(res,403,{error:'Forbidden'});
+   const chunks=[];let bytes=0;
+   for await(const chunk of req){bytes+=chunk.length;if(bytes>131072)return reply(res,413,{error:'Request too large'});chunks.push(chunk);}
+   let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{return reply(res,400,{error:'Invalid JSON'})}
+   if(path==='/demo/import/preview'){
+    let preview;try{preview=previewDemoImport(body.rows,state.machines)}catch{return reply(res,400,{error:'Invalid rows'})}
+    const token=crypto.randomUUID();
+    if(preview.canCommit)pending.set(token,{userId:user.id,role:user.role,rows:preview.valid,expires:Date.now()+600000});
+    return reply(res,200,{token:preview.canCommit?token:null,validCount:preview.valid.length,errors:preview.errors,canCommit:preview.canCommit});
+   }
+   const item=pending.get(body.token);
+   if(!item||item.userId!==user.id||item.role!==user.role||item.expires<Date.now())return reply(res,400,{error:'Invalid or expired preview'});
+   pending.delete(body.token);
+   for(const row of item.rows)state=applyDemoAction(state,user.role,{type:'addTransaction',...row});
+   return reply(res,200,{ok:true,imported:item.rows.length});
   }
   if(req.method==='POST'&&path==='/demo/actions'){
    const chunks=[];let bytes=0;
