@@ -40,7 +40,7 @@ function recordRepairEvent(r,text) {
 }
 
 function saveWorkshop(previous) {
-  try { if(storageLoadError)throw Error('Stored data must be recovered first');localStorage.setItem(storageKey,JSON.stringify(state));storageAvailable=true;syncMachineStatuses();return true; } catch { storageAvailable=false; }
+  try { if(storageLoadError)throw Error('Stored data must be recovered first');localStorage.setItem(activeStorageKey,JSON.stringify(state));storageAvailable=true;syncMachineStatuses();return true; } catch { storageAvailable=false; }
   replaceState(previous);
   syncMachineStatuses();
   formError('Не удалось сохранить в браузере. Уменьшите число фотографий или освободите место. Данные не изменены.');
