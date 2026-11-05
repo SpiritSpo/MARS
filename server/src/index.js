@@ -2,6 +2,7 @@ import http from 'node:http';
 import {Pool} from 'pg';
 import {createAuthHandler} from './auth-handler.js';
 import {createDemoHandler} from './demo-handler.js';
+import {createDemoStore} from './demo-store.js';
 
 // Finance data must never be served without a database-backed session.
 const port=Number(process.env.PORT||3000);
@@ -11,7 +12,7 @@ const pool=process.env.DATABASE_URL?new Pool({
  ssl:process.env.PGSSLMODE==='require'?{rejectUnauthorized:true}:undefined
 }):null;
 const auth=pool?createAuthHandler(pool,{secureCookies:process.env.NODE_ENV!=='test'}):null;
-const demo=auth?createDemoHandler({getUser:auth.currentUser}):null;
+const demo=auth?createDemoHandler({getUser:auth.currentUser,store:createDemoStore(pool)}):null;
 const send=(res,status,body)=>{
  res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
  res.end(JSON.stringify(body));
