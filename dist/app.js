@@ -205,7 +205,10 @@ function directorPurchaseDecision(id){
  const p=directorPurchases().find(x=>x.id===id);if(!p||!['На согласовании','Согласована','Заказана'].includes(p.status))return;
  const options=p.status==='На согласовании'?['Согласована','Отклонена']:p.status==='Согласована'?['Заказана']:['Получена'];
  showModal('Закупка '+p.number,'<p>'+esc(p.item)+' · '+p.qty+' ед. · '+rub(p.price)+'</p><form id="purchase-decision">'+field('Решение','<select name="status">'+options.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select>')+field('Комментарий','<textarea name="note" maxlength="300"></textarea>')+formActions('Сохранить решение')+'</form>');
- $('#purchase-decision').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),next=f.get('status');if(!options.includes(next))return;const prev=structuredClone(state);p.status=next;p.history.push({at:new Date().toISOString(),by:'Руководитель',text:next+' · '+String(f.get('note')||'')});if(!persist()){replaceState(prev);return formError('Не удалось сохранить решение.');}closeModal(false);render();toast('Статус закупки обновлён.');};
+ $('#purchase-decision').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),next=f.get('status');if(!options.includes(next))return;
+ // A failed save replaces state, so every submission must resolve the current record.
+ const current=directorPurchases().find(x=>x.id===id);if(!current)return formError('Заявка на закупку не найдена.');
+ const prev=structuredClone(state);current.status=next;current.history.push({at:new Date().toISOString(),by:'Руководитель',text:next+' · '+String(f.get('note')||'')});if(!persist()){replaceState(prev);return formError('Не удалось сохранить решение.');}closeModal(false);render();toast('Статус закупки обновлён.');};
 }
 function procurementPage(){
  const rows=directorPurchases();

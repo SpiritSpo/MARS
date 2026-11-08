@@ -28,6 +28,35 @@ function setup(mode,prepare=()=>{}){
 }
 
 const scenarios=[
+  ...[
+    ['На согласовании','Согласована'],
+    ['На согласовании','Отклонена'],
+    ['Согласована','Заказана'],
+    ['Заказана','Получена']
+  ].map(([status,next])=>({
+    name:'saves a purchase decision '+status+' → '+next+' and its history',
+    prepare(data){
+      data.purchaseRequests.push({id:'purchase-retry',number:'СН-ТЕСТ',item:'Тестовая запчасть',
+        qty:1,price:100,machine:'M001',note:'Проверка сохранения',status,
+        history:[{at:'2026-11-06T12:00:00.000Z',by:'Механик',text:'Ранее сохранённая запись'}]});
+    },
+    open(a){
+      a.run("role='director';directorPurchaseDecision('purchase-retry');");
+      return {form:a.form('#purchase-decision'),values:{status:next,note:'Тестовый комментарий решения'}};
+    },
+    verify(a,before){
+      const state=a.state(),old=before.purchaseRequests.find(p=>p.id==='purchase-retry');
+      const saved=state.purchaseRequests.find(p=>p.id===old.id);
+      assert.equal(saved.status,next);
+      assert.deepEqual(saved.history,[...old.history,{
+        at:'2026-11-07T12:00:00.000Z',by:'Руководитель',text:next+' · Тестовый комментарий решения'
+      }],'Keep earlier history and append exactly one successful decision');
+      assert.deepEqual({...saved,status:old.status,history:old.history},old);
+      assert.equal(state.purchaseRequests.length,before.purchaseRequests.length);
+      assert.deepEqual(state.purchaseRequests.filter(p=>p.id!==old.id),before.purchaseRequests.filter(p=>p.id!==old.id));
+    },
+    success:/Статус закупки обновлён/
+  })),
   {
     name:'manager creates a request',
     open(a){
@@ -201,6 +230,28 @@ for(const mode of ['demo','working'])for(const scenario of scenarios){
     assert.deepEqual(reloaded.state(),a.state(),'A successful retry must survive reload');
   });
 }
+
+for(const mode of ['demo','working'])test(mode+': purchase retry uses the changed decision and comment from the same open form',()=>{
+  const scenario=scenarios.find(s=>s.name.includes('На согласовании → Отклонена'));
+  const a=setup(mode,scenario.prepare),action=scenario.open(a),before=a.state();
+  const protectedBefore=protectedEntries(a),originalStorage=[...a.storage],writes=a.writes.length;
+  a.control.failWrites=true;
+  a.submit(action.form,{status:'Согласована',note:'Комментарий неудачной попытки'});
+  assert.deepEqual(a.state(),before);
+  assert.deepEqual([...a.storage],originalStorage);
+  assert.ok(a.modalOpen());
+  assert.ok(!a.messages.some(m=>scenario.success.test(m)));
+  a.control.failWrites=false;
+  // Do not reopen the modal: resubmit its existing handler with edited values.
+  act(a,action);
+  scenario.verify(a,before);
+  assert.equal(a.writes.length,writes+1);
+  assert.ok(a.messages.some(m=>scenario.success.test(m)));
+  assert.equal(a.modalOpen(),false);
+  assertPreserved(a,before);assertProtected(a,protectedBefore);
+  const reloaded=a.reload();scenario.verify(reloaded,before);
+  assert.deepEqual(reloaded.state(),a.state());
+});
 
 test('Unreadable existing demo bytes cannot be overwritten by request, shift or stock actions',()=>{
   const raw='{broken original demo bytes';
