@@ -144,7 +144,27 @@ const result=m=>{const s=sums([m]);return s.income-s.expense;};
 const canFinance=()=>role==='director';
 const canApprove=()=>['director','mechanic'].includes(role);
 const canEditRecords=()=>['director','mechanic'].includes(role);
-const auditTrail=()=>Array.isArray(state.recordAudit)?state.recordAudit:(state.recordAudit=[]);
+const auditEntries=()=>Array.isArray(state.recordAudit)?state.recordAudit:[];
+function validAuditEntry(entry){
+ const record=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+ const readings=value=>record(value)&&Number.isFinite(value.hours)&&Number.isFinite(value.meter);
+ return record(entry)&&typeof entry.shiftId==='string'&&typeof entry.at==='string'&&Number.isFinite(Date.parse(entry.at))&&typeof entry.actor==='string'&&typeof entry.reason==='string'&&readings(entry.before)&&readings(entry.after);
+}
+function auditTrail(){
+ if(Array.isArray(state.recordAudit))return state.recordAudit;
+ // Normalize only during a save, after its rollback snapshot. Preserve the
+ // original value in the same atomic dataset write; opening a form is read-only.
+ if(Object.hasOwn(state,'recordAudit')&&state.recordAudit!==undefined){
+  const at=new Date().toISOString();
+  if(!Array.isArray(state.recordAuditRecovery)){
+   const previous=state.recordAuditRecovery;
+   state.recordAuditRecovery=Object.hasOwn(state,'recordAuditRecovery')&&previous!==undefined?[{at,source:'recordAuditRecovery',value:structuredClone(previous)}]:[];
+  }
+  state.recordAuditRecovery.push({at,value:structuredClone(state.recordAudit)});
+ }
+ state.recordAudit=[];
+ return state.recordAudit;
+}
 const visibleMachines=()=>role==='operator'?machines.filter(m=>m.id===currentOperatorMachine()):machines;
 const visibleShifts=()=>state.shifts.filter(s=>(role!=='operator'||s.machine===currentOperatorMachine())&&(period==='all'||s.date.startsWith(period)));
 const tag=(text,color='gray')=>`<span class="tag ${color}">${esc(text)}</span>`;
@@ -289,7 +309,7 @@ function recordEditModal(id){
  if(!canEditRecords())return;
  const s=state.shifts.find(x=>x.id===id);
  if(!s||s.status!=='approved')return;
- const history=(state.recordAudit||[]).filter(x=>x.shiftId===id).slice().reverse();
+ const history=auditEntries().filter(x=>validAuditEntry(x)&&x.shiftId===id).slice().reverse();
  showModal('Корректировка смены, путевого листа и табеля',`<form id="record-edit-form">
  <p class="page-note">Изменения часов автоматически отражаются в табеле и черновике путевого листа. Все корректировки сохраняются в журнале.</p>
  <div class="form-grid"><label class="field">Отработано, ч<input name="hours" type="number" min="0" max="24" step="0.5" required value="${s.hours}"></label><label class="field">Моточасы / счётчик<input name="meter" type="number" min="0" step="0.1" required value="${s.meter}"></label></div>
