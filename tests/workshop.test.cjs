@@ -113,8 +113,11 @@ test('Accounting import blocks potentially repeated mechanic repair expenses',()
  a.run("state.operations.push({id:'repair-expense',machine:'M001',kind:'expense',category:'Ремонт и ТО',amount:35000,date:'2026-11-03',note:'ЗР-0099',sourceRepair:'repair-99'});state.maintenance.push({id:'repair-99',number:'ЗР-0099',machine:'M001'});");
  const rows=[['Дата','Техника','Статья','Сумма','Комментарий'],['2026-11-03','M001','Ремонт и ТО','35000','ЗР-0099']];
  const parsed=a.run('accountantParseRows('+JSON.stringify(rows)+')');
- assert.equal(parsed.rows.length,0);
- assert.match(parsed.errors.join(' '),/повтор расходов ремонта/);
+ assert.equal(parsed.rows.length,1,'Keep the source row available for reconciliation');
+ assert.equal(parsed.review.length,1);
+ assert.equal(parsed.review[0].candidates[0].id,'repair-expense');
+ assert.equal(a.run('accountantCommitImport('+JSON.stringify(parsed.rows)+').ok'),false,'Posting requires an explicit reconciliation decision');
+ assert.equal(a.run('state.operations.length'),1);
 });
 
 test('A failed repair completion can be retried in the same form without losing or duplicating records',()=>{
