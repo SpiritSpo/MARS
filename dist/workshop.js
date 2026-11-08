@@ -188,9 +188,26 @@ function openRepair(id) {
 function completeRepairForm(id) {
   const r=state.maintenance.find(x=>x.id===id);if(!canManageRepairs()||!r||!['progress','waiting'].includes(r.status))return;
   if(!machine(r.machine))return toast('Сначала добавьте технику этой заявки в справочник.');
-  showModal('Завершение ремонта · '+r.number,`<form id="repair-close-form"><p class="form-hint">${esc(machineLabel(r.machine))} · ${esc(r.type)}</p>${field('Что выполнено?','<textarea name="result" required maxlength="600" placeholder="Какие работы выполнены и проверена ли техника"></textarea>')}<div class="form-grid">${field('Стоимость работ, ₽','<input name="labor" type="number" min="0" max="999999999" step="0.01" value="0" required inputmode="decimal">')}${field('Прочие затраты, ₽','<input name="external" type="number" min="0" max="999999999" step="0.01" value="0" required inputmode="decimal">')}</div><h3 class="workshop-section-title">Запчасти со склада</h3><p class="form-hint">Укажите количество и цену за единицу. Цена пока вводится вручную и не проверяется по поступлениям. Остатки уменьшатся при завершении.</p><div class="repair-parts-list">${state.stock.map(p=>`<div class="repair-part-row"><div><b>${esc(p.name)}</b><small>На складе: ${p.qty} ${esc(p.unit)}</small></div><label>Количество<input name="qty-${p.id}" type="number" min="0" max="${p.qty}" step="${p.unit==='шт.'?'1':'0.01'}" value="0" inputmode="decimal"></label><label>Цена, ₽/${esc(p.unit)}<input name="price-${p.id}" type="number" min="0" max="999999999" step="0.01" value="0" inputmode="decimal"></label></div>`).join('')}</div><div class="repair-total-preview">Итого по заявке<strong id="close-total">0 ₽</strong></div><div class="info-note">Завершение спишет выбранные запчасти и добавит одну операцию «Ремонт и ТО», если сумма больше нуля. Другие открытые ремонты этой машины сохранят её статус «На ремонте».</div>${formActions('Завершить и сохранить')}</form>`,true);
+  showModal('Завершение ремонта · '+r.number,`<form id="repair-close-form"><p class="form-hint">${esc(machineLabel(r.machine))} · ${esc(r.type)}</p>${field('Что выполнено?','<textarea name="result" required maxlength="600" placeholder="Какие работы выполнены и проверена ли техника"></textarea>')}<div class="form-grid">${field('Стоимость работ, ₽','<input name="labor" type="number" min="0" max="999999999" step="0.01" value="0" required inputmode="decimal">')}${field('Прочие затраты, ₽','<input name="external" type="number" min="0" max="999999999" step="0.01" value="0" required inputmode="decimal">')}</div><h3 class="workshop-section-title">Запчасти со склада</h3><p class="form-hint">Укажите количество и цену за единицу. Цена пока вводится вручную и не проверяется по поступлениям. Остатки уменьшатся при завершении.</p><div class="repair-parts-list">${state.stock.map(p=>`<div class="repair-part-row"><div><b>${esc(p.name)}</b><small>На складе: ${p.qty} ${esc(p.unit)}</small></div><label>Количество<input name="qty-${p.id}" type="number" min="0" max="${p.qty}" step="${p.unit==='шт.'?'1':'0.01'}" value="0" inputmode="decimal"></label><label>Цена, ₽/${esc(p.unit)}<input name="price-${p.id}" type="number" min="0" max="999999999" step="0.01" value="0" inputmode="decimal"></label></div>`).join('')}</div><div class="repair-total-preview">Итого по заявке<strong id="close-total">0 ₽</strong></div><div class="info-note">Завершение спишет выбранные запчасти. При положительной сумме затраты будут учтены отдельно либо связаны с ранее внесённым расходом после сверки. Другие открытые ремонты этой машины сохранят её статус «На ремонте».</div><div id="repair-finance-review"></div>${formActions('Завершить и сохранить')}</form>`,true);
   const form=$('#repair-close-form');
-  form.oninput=()=>{const f=new FormData(form);const n=Number(f.get('labor'))+Number(f.get('external'))+state.stock.reduce((s,p)=>s+Number(f.get('qty-'+p.id))*Number(f.get('price-'+p.id)),0);$('#close-total').textContent=Number.isFinite(n)?rub(n):'—';};
+  // A review belongs to the current amount and candidates. Cost changes or a
+  // newly recorded expense invalidate an earlier choice without closing the form.
+  let financeReviewSignature='';
+  const updateFinanceReview=(op,candidates)=>{
+    const signature=JSON.stringify([op.machine,op.date,op.amount,candidates.map(x=>[x.id,x.machine,x.allocation,x.amount,x.date,x.expenseMatch])]);
+    if(signature===financeReviewSignature)return false;
+    financeReviewSignature=signature;
+    const box=$('#repair-finance-review');
+    box.innerHTML=!candidates.length?'':`<div class="info-note"><strong>Нужна сверка расходов</strong><p>Найдены ранее внесённые расходы. Совпадение суммы, даты или техники само по себе не подтверждает повтор. Выберите уже учтённый расход либо подтвердите отдельную операцию. Обе записи сохранятся.</p>${field('Решение','<select name="financeDecision"><option value="">Выберите решение</option><option value="link">Это тот же расход — учесть один раз</option><option value="distinct">Это отдельный расход</option></select>')}${field('Ранее внесённый расход',`<select name="financeTarget"><option value="">Выберите запись для связи</option>${candidates.map(x=>`<option value="${esc(x.id)}" ${financeCanLink(op,x)?'':'disabled'}>${esc(x.date)} · ${esc(x.category)} · ${rub(x.amount)} · ${esc(x.note||x.id)}${financeCanLink(op,x)?'':' · сумма или назначение отличаются'}</option>`).join('')}</select>`)}${field('Основание сверки','<textarea name="financeReason" maxlength="500" placeholder="Укажите документ или основание решения"></textarea>')}</div>`;
+    return true;
+  };
+  const proposedExpense=(r,total,date=today())=>({id:uid(),machine:r.machine,kind:'expense',category:'Ремонт и ТО',amount:total,date,note:`${r.number} · ${r.type}`,source:'repair',sourceRepair:r.id,provenance:{kind:'repair',repairId:r.id,repairNumber:r.number,documentNumber:r.documentNumber||''}});
+  form.oninput=()=>{
+    const f=new FormData(form),n=Number(f.get('labor'))+Number(f.get('external'))+state.stock.reduce((s,p)=>s+Number(f.get('qty-'+p.id))*Number(f.get('price-'+p.id)),0);
+    $('#close-total').textContent=Number.isFinite(n)?rub(n):'—';
+    const current=state.maintenance.find(x=>x.id===id);
+    if(current&&Number.isFinite(n)&&n>=0){const op=proposedExpense(current,Math.round(n*100)/100);updateFinanceReview(op,n>0?financeReviewCandidates(op):[]);}
+  };
   form.onsubmit=e=>{
     e.preventDefault();
     // A failed save restores cloned records, so a retry must resolve the current repair.
@@ -201,12 +218,22 @@ function completeRepairForm(id) {
     if(![labor,external].every(n=>Number.isFinite(n)&&n>=0&&n<=999999999))return formError('Проверьте суммы затрат.');
     const parts=[];
     for(const p of state.stock){const qty=Number(f.get('qty-'+p.id)),price=Number(f.get('price-'+p.id));if(!Number.isFinite(qty)||qty<0||qty>p.qty||(p.unit==='шт.'&&!Number.isInteger(qty)))return formError('Проверьте количество: '+p.name);if(!Number.isFinite(price)||price<0||price>999999999)return formError('Проверьте цену: '+p.name);if(qty>0)parts.push({id:p.id,name:p.name,unit:p.unit,qty,price:Math.round(price*100)/100});}
-    const previous=structuredClone(state),date=today();
+    const date=today(),total=Math.round((Math.round(labor*100)/100+Math.round(external*100)/100+parts.reduce((sum,p)=>sum+p.qty*p.price,0))*100)/100;
+    const op=total>0?proposedExpense(r,total,date):null;
+    if(op){
+      const candidates=financeReviewCandidates(op),changed=updateFinanceReview(op,candidates);
+      if(candidates.length){
+        if(changed)return formError('Проверьте найденные расходы и выберите решение сверки.');
+        const error=financeApplyDecision(op,{kind:f.get('financeDecision'),targetId:f.get('financeTarget'),reason:String(f.get('financeReason')||'').trim()});
+        if(error)return formError(error);
+      }
+      financeRecordEvent(op,'repair-completed',{repairId:r.id,repairNumber:r.number});
+    }
+    const previous=structuredClone(state);
     Object.assign(r,{status:'done',blocking:r.blocking,readyConfirmed:!r.blocking,completedAt:new Date().toISOString(),resultNote:result,laborCost:Math.round(labor*100)/100,externalCost:Math.round(external*100)/100,parts});
     for(const p of parts){const stock=state.stock.find(x=>x.id===p.id);stock.qty=Math.round((stock.qty-p.qty)*100)/100;state.stockMoves.push({id:uid(),part:p.id,qty:p.qty,kind:'issue',machine:r.machine,date,note:`Ремонт ${r.number}`,sourceRepair:r.id});}
-    const total=Math.round(repairTotal(r)*100)/100;
-    if(total>0){const op={id:uid(),machine:r.machine,kind:'expense',category:'Ремонт и ТО',amount:total,date,note:`${r.number} · ${r.type}`,sourceRepair:r.id};state.operations.push(op);r.financeOperationId=op.id;}
-    recordRepairEvent(r,'Ремонт завершён: '+result+(total>0?' · учтено '+rub(total):''));
+    if(op){state.operations.push(op);r.financeOperationId=op.id;}
+    recordRepairEvent(r,'Ремонт завершён: '+result+(total>0?(op.expenseMatch?' · расход связан с ранее учтённой операцией ':' · учтено ')+rub(total):''));
     if(!saveWorkshop(previous))return;closeModal(false);render();openRepair(r.id);toast(r.blocking?'Ремонт завершён. Для допуска техники подтвердите исправность.':'Работы завершены. История, склад и затраты обновлены.');
   };
 }
