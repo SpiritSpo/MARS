@@ -5,19 +5,21 @@ const vm=require('node:vm');
 const path=require('node:path');
 const demoFixture=require('./fixtures/demo-state.cjs');
 
-function app() {
-  const elements=new Map();
-  const node=()=>({innerHTML:'',textContent:'',style:{},value:'',files:[],classList:{add(){},remove(){}},focus(){},querySelectorAll(){return [];},addEventListener(){},setSelectionRange(){}});
-  const context=vm.createContext({console,structuredClone,Intl,Date,Math,setTimeout,clearTimeout,failWrites:false,document:{querySelector(s){if(!elements.has(s))elements.set(s,node());return elements.get(s);},querySelectorAll(){return [];},addEventListener(){},body:{style:{}},activeElement:{tagName:'BODY'}},localStorage:{getItem(){return null;},setItem(){if(context.failWrites)throw new Error('QuotaExceededError');}},FormData:class {constructor(form){this.values=form.values;}get(key){return this.values[key]??'';}has(key){return key in this.values;}}});
+function app({saved={},restore=false}={}) {
+  const elements=new Map(),storage=new Map(Object.entries(saved)),writes=[],messages=[];
+  const node=()=>({innerHTML:'',textContent:'',style:{},value:'',files:[],listeners:{},classList:{add(){},remove(){}},focus(){},querySelectorAll(){return [];},addEventListener(name,handler){this.listeners[name]=handler;},setSelectionRange(){}});
+  const context=vm.createContext({console,structuredClone,Intl,Date,Math,setTimeout,clearTimeout,failWrites:false,testMessages:messages,document:{querySelector(s){if(!elements.has(s))elements.set(s,node());return elements.get(s);},querySelectorAll(){return [];},addEventListener(){},body:{style:{}},activeElement:{tagName:'BODY'}},localStorage:{getItem(key){return storage.get(key)??null;},setItem(key,value){if(context.failWrites)throw new Error('QuotaExceededError');storage.set(key,String(value));writes.push(key);}},FormData:class {constructor(form){this.values=form.values;}get(key){return this.values[key]??'';}has(key){return key in this.values;}}});
   const run=source=>vm.runInContext(source,context);
   const root=path.join(__dirname,'..','dist');
   run(fs.readFileSync(path.join(root,'workshop.js'),'utf8'));
   run(fs.readFileSync(path.join(root,'app.js'),'utf8').replace(/\nrender\(\);\s*$/,''));
-  context.testFixture=structuredClone(demoFixture);
-  run('replaceState({...testFixture.state,machines:testFixture.machines,objects:testFixture.objects});initializeWorkshop();');
-  delete context.testFixture;
-  run('render=()=>{};toast=()=>{};openRepair=()=>{};');
-  return {run,elements,context};
+  if(!restore){
+    context.testFixture=structuredClone(demoFixture);
+    run('replaceState({...testFixture.state,machines:testFixture.machines,objects:testFixture.objects});initializeWorkshop();');
+    delete context.testFixture;
+  }
+  run('const showRepairForTest=openRepair;render=()=>{};toast=message=>testMessages.push(message);openRepair=()=>{};');
+  return {run,elements,context,storage,writes,messages};
 }
 
 function close(a,values={}) {
@@ -113,4 +115,143 @@ test('Accounting import blocks potentially repeated mechanic repair expenses',()
  const parsed=a.run('accountantParseRows('+JSON.stringify(rows)+')');
  assert.equal(parsed.rows.length,0);
  assert.match(parsed.errors.join(' '),/повтор расходов ремонта/);
+});
+
+test('A failed repair completion can be retried in the same form without losing or duplicating records',()=>{
+  const protectedKeys={
+    'monarch-im-control-v1':'preserved legacy bytes',
+    'mars-catalog-archive-v1':'preserved catalog archive bytes',
+    'mars-director-presentation-v1':'preserved separate demo bytes'
+  };
+  const a=app({saved:protectedKeys});
+  a.run("state.operations.push({id:'prior-expense',machine:'M001',kind:'expense',category:'Тест',amount:75,date:today(),note:'Ранее сохранённая тестовая операция'});state.stockMoves.push({id:'prior-move',part:'part-2',qty:1,kind:'receipt',machine:'',date:today(),note:'Ранее сохранённое тестовое движение'});syncMachineStatuses();persist();");
+  const before=a.run('JSON.stringify(state)'),storedBefore=a.storage.get('mars-working-data-v1'),writesBefore=a.writes.length;
+  const historyBefore=a.run("state.maintenance.find(r=>r.id==='service-101').history.length");
+  a.context.failWrites=true;
+  const form=close(a,{'qty-part-1':'1','price-part-1':'650'});
+  assert.equal(a.run('JSON.stringify(state)'),before);
+  assert.equal(a.storage.get('mars-working-data-v1'),storedBefore);
+  assert.equal(a.writes.length,writesBefore);
+  assert.deepEqual(a.messages,[]);
+  assert.match(a.elements.get('#form-error').textContent,/Данные не изменены/);
+  form.onsubmit({target:form,preventDefault(){}});
+  assert.equal(a.run('JSON.stringify(state)'),before);
+  assert.equal(a.storage.get('mars-working-data-v1'),storedBefore);
+  assert.deepEqual(a.messages,[]);
+
+  a.context.failWrites=false;
+  form.onsubmit({target:form,preventDefault(){}});
+  assert.equal(a.run("state.stock.find(p=>p.id==='part-1').qty"),3);
+  assert.equal(a.run("state.operations.filter(o=>o.sourceRepair==='service-101').length"),1);
+  assert.equal(a.run("state.stockMoves.filter(m=>m.sourceRepair==='service-101').length"),1);
+  assert.equal(a.run("state.operations.find(o=>o.id==='prior-expense').amount"),75);
+  assert.equal(a.run("state.stockMoves.find(m=>m.id==='prior-move').qty"),1);
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.equal(a.messages.length,1);
+  assert.match(a.messages[0],/Ремонт завершён/);
+  const saved=a.storage.get('mars-working-data-v1');
+  form.onsubmit({target:form,preventDefault(){}});
+  assert.equal(a.storage.get('mars-working-data-v1'),saved);
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.equal(a.messages.length,1);
+  for(const [key,value] of Object.entries(protectedKeys))assert.equal(a.storage.get(key),value);
+
+  const reloaded=app({saved:Object.fromEntries(a.storage),restore:true});
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').status"),'done');
+  assert.equal(reloaded.run("state.stock.find(p=>p.id==='part-1').qty"),3);
+  assert.equal(reloaded.run("state.operations.filter(o=>o.sourceRepair==='service-101').length"),1);
+  assert.equal(reloaded.run("state.stockMoves.filter(m=>m.sourceRepair==='service-101').length"),1);
+  assert.equal(reloaded.run("state.operations.find(o=>o.id==='prior-expense').amount"),75);
+  assert.equal(reloaded.run("state.stockMoves.find(m=>m.id==='prior-move').qty"),1);
+});
+
+test('Repair changes retry against the restored record and survive reload',()=>{
+  const a=app();
+  a.run("syncMachineStatuses();persist();showRepairForTest('service-101');");
+  const form=a.elements.get('#repair-update-form');
+  const dueDate='2027-12-31';
+  form.values={status:'progress',assignee:a.run("state.maintenance.find(r=>r.id==='service-101').assignee"),dueDate,blocking:'on',comment:''};
+  const before=a.run('JSON.stringify(state)'),storedBefore=a.storage.get('mars-working-data-v1'),writesBefore=a.writes.length;
+  const historyBefore=a.run("state.maintenance.find(r=>r.id==='service-101').history.length");
+  a.context.failWrites=true;
+  form.onsubmit({target:form,preventDefault(){}});
+  assert.equal(a.run('JSON.stringify(state)'),before);
+  assert.equal(a.storage.get('mars-working-data-v1'),storedBefore);
+  assert.equal(a.writes.length,writesBefore);
+  assert.deepEqual(a.messages,[]);
+  assert.match(a.elements.get('#form-error').textContent,/Данные не изменены/);
+  a.context.failWrites=false;
+  form.onsubmit({target:form,preventDefault(){}});
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').dueDate"),dueDate);
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.deepEqual(a.messages,['Заявка обновлена.']);
+  form.onsubmit({target:form,preventDefault(){}});
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.equal(a.messages.length,1);
+  const reloaded=app({saved:Object.fromEntries(a.storage),restore:true});
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').dueDate"),dueDate);
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
+});
+
+test('A mechanic can retry technical release after a storage failure without false success',()=>{
+  const a=app();
+  a.run("role='mechanic';Object.assign(state.maintenance.find(r=>r.id==='service-101'),{status:'done',blocking:true,readyConfirmed:false});syncMachineStatuses();persist();showRepairForTest('service-101');");
+  const click=a.elements.get('#repair-release').listeners.click;
+  const before=a.run('JSON.stringify(state)'),storedBefore=a.storage.get('mars-working-data-v1'),writesBefore=a.writes.length;
+  const historyBefore=a.run("state.maintenance.find(r=>r.id==='service-101').history.length");
+  a.context.failWrites=true;
+  click();
+  assert.equal(a.run('JSON.stringify(state)'),before);
+  assert.equal(a.storage.get('mars-working-data-v1'),storedBefore);
+  assert.equal(a.writes.length,writesBefore);
+  assert.deepEqual(a.messages,[]);
+  assert.match(a.elements.get('#form-error').textContent,/Данные не изменены/);
+  a.context.failWrites=false;
+  click();
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').readyConfirmed"),true);
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').blocking"),false);
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.deepEqual(a.messages,['Техника допущена к эксплуатации.']);
+  click();
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.equal(a.messages.length,1);
+  const reloaded=app({saved:Object.fromEntries(a.storage),restore:true});
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').readyConfirmed"),true);
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').blocking"),false);
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
+});
+
+test('Technical release reports a storage failure without an inline error element and retries safely',()=>{
+  const a=app();
+  a.run("role='mechanic';Object.assign(state.maintenance.find(r=>r.id==='service-101'),{status:'done',blocking:true,readyConfirmed:false});syncMachineStatuses();persist();showRepairForTest('service-101');");
+  const querySelector=a.context.document.querySelector;
+  a.context.document.querySelector=function(selector){
+    return selector==='#form-error'?null:querySelector.call(this,selector);
+  };
+  const click=a.elements.get('#repair-release').listeners.click;
+  const before=a.run('JSON.stringify(state)'),storedBefore=a.storage.get('mars-working-data-v1'),writesBefore=a.writes.length;
+  const historyBefore=a.run("state.maintenance.find(r=>r.id==='service-101').history.length");
+
+  a.context.failWrites=true;
+  assert.doesNotThrow(()=>click());
+  assert.equal(a.run('JSON.stringify(state)'),before);
+  assert.equal(a.storage.get('mars-working-data-v1'),storedBefore);
+  assert.equal(a.writes.length,writesBefore);
+  assert.equal(a.messages.length,1);
+  assert.match(a.messages[0],/Не удалось сохранить.*Данные не изменены/);
+  assert.ok(a.messages.every(message=>!message.includes('Техника допущена')));
+
+  a.context.failWrites=false;
+  assert.doesNotThrow(()=>click());
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').readyConfirmed"),true);
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').blocking"),false);
+  assert.equal(a.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
+  assert.equal(a.writes.length,writesBefore+1);
+  assert.equal(a.messages.at(-1),'Техника допущена к эксплуатации.');
+  const reloaded=app({saved:Object.fromEntries(a.storage),restore:true});
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').readyConfirmed"),true);
+  assert.equal(reloaded.run("state.maintenance.find(r=>r.id==='service-101').history.length"),historyBefore+1);
 });
