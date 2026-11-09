@@ -43,3 +43,75 @@
 .brand-copy{min-width:0}
 .brand-expansion strong{font-weight:800}
 @media(max-width:600px){.mobile-brand .brand-logo{width:49px;height:49px}.mobile-brand .brand-logo svg{width:43px;height:43px}}
+
+/* Request editing and calendar details share the existing MARS form styles. */
+.modal,.modal-content{min-width:0}
+.modal{overscroll-behavior:contain}
+.modal-top{gap:12px}
+.modal-top h2{flex:1;min-width:0;overflow-wrap:anywhere}
+.modal-top .close-button{flex-shrink:0}
+#request-form,.request-form,#request-items{min-width:0;max-width:100%}
+#request-form{display:grid;gap:16px}
+#request-form :is(.request-fields,.request-item){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;min-width:0}
+#request-form label{display:flex;flex-direction:column;gap:7px;min-width:0;margin:0;color:#5f6e87;font-size:11px;font-weight:550}
+#request-form :is(input:not([type=checkbox]),select,textarea){display:block;width:100%;min-width:0;max-width:100%;min-height:41px;padding:10px 12px;border:1px solid #dce3ee;border-radius:7px;background:#fff;color:#354c6c;font-size:13px}
+#request-form select{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#request-form textarea{min-height:86px;resize:vertical}
+#request-form label:has(textarea){grid-column:1/-1}
+#request-form :is(.request-release,label:has(input[type=checkbox])){grid-column:1/-1;flex-direction:row;align-items:flex-start;gap:10px;min-height:44px;padding:10px 0;cursor:pointer;line-height:1.6}
+#request-form input[type=checkbox]{width:20px;height:20px;min-width:20px;min-height:20px;max-width:20px;flex:0 0 20px;margin:0;padding:0;accent-color:var(--blue)}
+#request-items{display:grid;gap:12px}
+#request-form .request-item{padding:14px;border:1px solid var(--line);border-radius:9px;margin:0}
+#request-form .request-remove{grid-column:1/-1;justify-self:start}
+#request-form>.btn{justify-self:start}
+#request-form .modal-actions{margin-top:0;flex-wrap:wrap}
+#request-form .btn{max-width:100%;white-space:normal}
+.request-details,.calendar-repair-details{display:grid;gap:18px;min-width:0;max-width:100%}
+.request-detail-grid,.repair-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 22px;min-width:0;margin:0}
+:is(.request-detail-grid,.repair-detail-grid)>div{min-width:0}
+:is(.request-detail-grid,.repair-detail-grid) dt{margin:0 0 5px;color:#5f6e87;font-size:11px;font-weight:550}
+:is(.request-detail-grid,.repair-detail-grid) dd{margin:0;color:#465a77;font-size:13px;line-height:1.6;overflow-wrap:anywhere;white-space:pre-wrap}
+.request-assignment,.calendar-repair-card{min-width:0;padding:16px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.request-assignment h4{margin:0 0 14px;font-size:13px;font-weight:650}
+.request-history{min-width:0;padding-top:18px;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.request-history h3{margin-bottom:10px}
+.request-history-entry{padding:12px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.7}
+:is(.request-details,.calendar-repair-details) p{overflow-wrap:anywhere}
+:is(.request-details,.calendar-repair-details) .modal-actions{margin-top:0;flex-wrap:wrap}
+:is(.request-details,.calendar-repair-details) .btn{max-width:100%;white-space:normal}
+.calendar-repair-card>header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.calendar-repair-card>header h3{flex:1 1 190px;min-width:0;overflow-wrap:anywhere}
+.calendar-repair-card>p{margin-top:10px;white-space:pre-wrap}
+.calendar-repair-card .repair-detail-grid{margin-top:16px}
+:is(.request-details,.calendar-repair-details) .tag{max-width:100%;padding:6px 9px;font-size:11px;white-space:normal;overflow-wrap:anywhere}
+.requests-calendar{min-width:0;max-width:100%}
+.request-calendar-legend{margin:0;padding:0 21px 16px;line-height:1.7}
+.request-calendar-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.request-calendar-table{width:max-content;min-width:100%}
+.request-calendar-table :is(th,td):first-child{min-width:160px;max-width:220px;white-space:normal;overflow-wrap:anywhere}
+.request-calendar-table th:not(:first-child),.request-calendar-table .request-calendar-cell{min-width:104px}
+.request-calendar-table .request-calendar-cell{padding:8px;vertical-align:top;text-align:center}
+.request-calendar-cell.has-bookings{background:#dbeafe}
+.request-calendar-cell.has-repairs{background:#ffedd5}
+.request-calendar-cell.has-conflict{background:#fdefef}
+.request-calendar-bookings{display:grid;gap:6px}
+.request-calendar-table :is(.request-calendar-booking,.request-calendar-repair){width:100%;min-height:40px;padding:7px 8px;font-size:11px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.request-calendar-table .request-calendar-booking{max-width:140px;flex-direction:column;gap:3px}
+.request-calendar-owner{display:block;max-width:100%;font-size:11px;font-weight:400;white-space:normal;overflow-wrap:anywhere}
+.request-owner-badge{display:inline-flex;align-items:center;max-width:100%;padding:2px 5px;border-radius:4px;background:#eef3ff;color:#4b72bd;font-size:10px;font-weight:600;line-height:1.4;white-space:normal}
+.request-owner-badge.other{background:#f0f3f7;color:#5f6e87}
+.request-calendar-status{display:block;margin-top:6px;color:#5f6e87;font-size:10px;font-weight:400;line-height:1.5;white-space:normal}
+.request-calendar-bookings+.request-calendar-repair{margin-top:6px}
+.request-calendar-repair+.request-calendar-repair{margin-top:6px}
+.request-calendar-conflict{display:block;margin-bottom:6px;color:var(--red);font-size:11px;font-weight:600;white-space:normal}
+@media(max-width:760px){
+ .modal-top{align-items:center}
+ .modal-top .close-button{width:44px;height:44px}
+ #request-form :is(.request-fields,.request-item){grid-template-columns:minmax(0,1fr);gap:14px}
+ #request-form :is(input:not([type=checkbox]),select,textarea){min-height:44px;padding:10px;font-size:16px}
+ #request-form .btn,:is(.request-details,.calendar-repair-details) .btn,.calendar-repair-details+.modal-actions .btn{min-height:44px;font-size:12px}
+ .request-detail-grid,.repair-detail-grid{grid-template-columns:minmax(0,1fr);gap:14px}
+ .request-assignment,.calendar-repair-card{padding:14px}
+ .request-calendar-legend{padding-right:16px;padding-left:16px}
+ .request-calendar-table :is(.request-calendar-booking,.request-calendar-repair){min-height:44px;font-size:12px}
+}

@@ -14,11 +14,11 @@ function initializeWorkshop() {
     r.kind ??= /ТО/.test(r.type) ? 'service' : 'repair';
     r.priority ??= 'normal';
     r.assignee ??= repairUnassigned;
-    r.dueDate ??= r.date;
+    r.dueDate ??= '';
     r.createdAt ??= r.date || '';
     r.reportedBy ??= 'Не указан';
     r.blocking ??= r.kind === 'repair' && r.status !== 'done';
-    r.readyConfirmed ??= r.status === 'done';
+    r.readyConfirmed ??= false;
     r.photos ??= [];
     r.history ??= [];
     r.parts ??= [];
@@ -34,6 +34,100 @@ const repairLate = r => r.status !== 'done' && r.dueDate && r.dueDate < today();
 const workshopTime = at => !at ? 'Дата не указана' : /^\d{4}-\d{2}-\d{2}$/.test(at) ? dateText(at) : new Date(at).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const repairNumber = () => 'ЗР-' + String(Math.max(0,...state.maintenance.map(r => Number((r.number || '').replace('ЗР-','')) || 0)) + 1).padStart(4,'0');
 const workshopActor = () => roleNames[role] || 'Роль не указана';
+
+// Calendar projections only read recorded repair data. A planned deadline is
+// neither a release confirmation nor evidence of a repair's actual duration.
+function calendarRepairDay(value) {
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return '';
+  const parsed=new Date(value+'T00:00:00.000Z');
+  return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===value?value:'';
+}
+
+function calendarRepairRecordedDay(value) {
+  const day=calendarRepairDay(value);
+  if(day)return day;
+  if(typeof value!=='string')return '';
+  const parts=value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})?$/);
+  if(!parts||!calendarRepairDay(parts[1])||Number(parts[2])>23||Number(parts[3])>59||Number(parts[4]||0)>59||!Number.isFinite(Date.parse(value)))return '';
+  return parts[1];
+}
+
+function calendarRepairBounds(r,now) {
+  const first=fields=>fields.map(key=>calendarRepairRecordedDay(r[key])).find(Boolean)||'';
+  const actualStart=first(['startedAt','startDate','repairStartedAt']);
+  const plannedStart=first(['planDate','plannedStartDate','plannedStart','plannedFrom']);
+  const requestDate=calendarRepairRecordedDay(r.date)||calendarRepairRecordedDay(r.createdAt);
+  const start=actualStart||plannedStart||calendarRepairRecordedDay(r.date);
+  const due=calendarRepairDay(r.dueDate);
+  const end=first(['releasedAt','completedAt']);
+  const current=r.status!=='done'||Boolean(r.blocking&&!r.readyConfirmed);
+  const closed=r.status==='done'&&r.readyConfirmed===true;
+  const contradictory=Boolean((start&&due&&start>due)||(actualStart&&actualStart>now));
+  const factual=Boolean(closed&&actualStart&&end&&actualStart<=end&&end<=now);
+  return {actualStart,plannedStart,requestDate,start,due,end,current,closed,contradictory,factual};
+}
+
+function calendarRepairProjection(r,bounds,day,now) {
+  if(bounds.closed)return bounds.factual&&bounds.actualStart<=day&&day<=bounds.end?'scheduled':'';
+  if(!bounds.current)return '';
+  if(!bounds.contradictory&&bounds.start&&bounds.due&&bounds.start<=day&&day<=bounds.due)return 'scheduled';
+  // Current records cannot establish an open-ended historical repair. On
+  // today/future dates an unknown boundary or overdue release stays uncertain.
+  if(day>=now&&!r.readyConfirmed&&(bounds.contradictory||!bounds.start||!bounds.due||day>bounds.due||(r.blocking&&day<bounds.start)))return 'uncertain';
+  return '';
+}
+
+function calendarRepairIndex(days) {
+  const validDays=[...new Set(Array.from(days||[]).map(calendarRepairDay).filter(Boolean))];
+  const index=new Map(),now=today();
+  for(const r of state.maintenance) {
+    if(!r||typeof r.machine!=='string'||!r.machine)continue;
+    const bounds=calendarRepairBounds(r,now);
+    if(!bounds.current&&!bounds.factual)continue;
+    let machineDays=index.get(r.machine);
+    if(!machineDays){machineDays=new Map();index.set(r.machine,machineDays);}
+    for(const day of validDays) {
+      const kind=calendarRepairProjection(r,bounds,day,now);
+      if(!kind)continue;
+      let cell=machineDays.get(day);
+      if(!cell){cell={scheduled:[],uncertain:[]};machineDays.set(day,cell);}
+      cell[kind].push(r);
+    }
+  }
+  return index;
+}
+
+function calendarRepairState(machineId,day) {
+  if(!calendarRepairDay(day))return {scheduled:[],uncertain:[]};
+  return calendarRepairIndex([day]).get(machineId)?.get(day)||{scheduled:[],uncertain:[]};
+}
+
+function calendarRepairLimitations(r,bounds,now) {
+  const notes=[];
+  if(!bounds.actualStart)notes.push('Фактическое начало неизвестно. Дата заявки и план не подтверждают начало ремонта.');
+  if(!bounds.due)notes.push('Плановое окончание не указано или дата некорректна.');
+  if(bounds.contradictory)notes.push('Даты противоречат друг другу или фактическое начало указано в будущем. Период ремонта требует уточнения.');
+  if(bounds.current&&!r.readyConfirmed)notes.push('Готовность не подтверждена: после планового срока или при неизвестных границах доступность требует уточнения.');
+  if(r.blocking&&!r.readyConfirmed)notes.push('Текущая блокировка действует до подтверждения готовности механиком независимо от планового срока.');
+  if(bounds.closed&&!bounds.factual)notes.push('Фактические границы завершённого ремонта неизвестны или некорректны; исторический период не восстановлен.');
+  return notes.join(' ');
+}
+
+function openCalendarRepairs(machineId,day='') {
+  if(!['director','dispatcher'].includes(role)||typeof machineId!=='string'||!machineId)return;
+  if(day&&!calendarRepairDay(day))return;
+  const now=today();
+  const rows=state.maintenance.filter(r=>r&&r.machine===machineId).map(r=>({r,bounds:calendarRepairBounds(r,now)})).filter(({bounds})=>bounds.current||Boolean(day&&bounds.factual&&bounds.actualStart<=day&&day<=bounds.end));
+  const detail=(label,value,cls='')=>`<div><dt>${label}</dt><dd${cls?` class="${cls}"`:''}>${esc(value)}</dd></div>`;
+  const cards=rows.map(({r,bounds})=>{
+    const late=Boolean(bounds.current&&!r.readyConfirmed&&bounds.due&&bounds.due<now);
+    const ready=r.readyConfirmed===true;
+    const limitations=calendarRepairLimitations(r,bounds,now);
+    return `<article class="calendar-repair-card"><header><h3>${esc(r.number||'Номер не указан')} · ${esc(r.type||'Работы не указаны')}</h3>${repairTag(r)}</header><p class="repair-detail-note">${esc(r.note||'Описание не добавлено')}</p><dl class="repair-detail-grid">${detail('Техника',machineLabel(machineId)+' · '+machineId)}${detail('Номер заявки',r.number||'Номер не указан')}${detail('Вид работ',r.kind==='service'?'Плановое ТО':'Ремонт')}${detail('Неисправность / работы',r.type||'Не указаны')}${detail('Фактическое начало',bounds.actualStart?dateText(bounds.actualStart):'Дата начала неизвестна')}${detail('Дата заявки / регистрации',bounds.requestDate?dateText(bounds.requestDate):'Дата заявки неизвестна')}${detail('Начало по плану',bounds.plannedStart?dateText(bounds.plannedStart):'Плановое начало не указано')}${detail('Плановое окончание',bounds.due?dateText(bounds.due):'Срок не указан',late?'negative':'')}${detail('Ответственный',r.assignee||repairUnassigned)}${detail('Статус',repairStatusNames[r.status]||r.status||'Не указан')}${detail('Просрочка',late?'Срок прошёл':!bounds.due?'Невозможно определить без срока':'Нет',late?'negative':'')}${detail('Техническая готовность',ready?'Подтверждена механиком':'Не подтверждена')}${detail('Допуск к эксплуатации',r.blocking&&!ready?'Эксплуатация запрещена до допуска механика':ready?'Готовность подтверждена':'Остановка не отмечена; готовность не подтверждена')}${bounds.closed?detail('Фактическое завершение / допуск',bounds.end?dateText(bounds.end):'Дата завершения неизвестна'):''}</dl>${limitations?`<p class="info-note">${esc(limitations)}</p>`:''}</article>`;
+  }).join('');
+  const intro=day?`На ${dateText(day)}. Показаны все текущие открытые и не допущенные ремонты техники, а также завершённые ремонты с подтверждённым фактическим периодом на эту дату.`:'Показаны все текущие открытые и не допущенные ремонты этой техники. Плановые сроки не подтверждают техническую готовность.';
+  showModal('Ремонты · '+machineLabel(machineId),`<div class="calendar-repair-details"><p class="page-note">${esc(intro)}</p>${cards||'<p>Записей о ремонте для этого выбора нет. Сведения о сроках и готовности требуют уточнения.</p>'}</div><div class="modal-actions"><button class="btn" data-close>Закрыть</button></div>`,true);
+}
 
 function recordRepairEvent(r,text) {
   r.history.push({at:new Date().toISOString(),text,by:workshopActor()});
@@ -126,7 +220,7 @@ function attachPhotoPicker(id,initial=[]) {
 }
 
 function newRepairRecord(values) {
-  const r={readyConfirmed:false,id:uid(),number:repairNumber(),machine:values.machine,kind:values.kind||'repair',type:values.type,note:values.note||'',date:values.date||today(),dueDate:values.dueDate||today(),createdAt:new Date().toISOString(),status:values.status||'new',priority:values.priority||'normal',assignee:values.assignee||repairUnassigned,blocking:values.kind==='repair'||!!values.blocking,reportedBy:workshopActor(),photos:values.photos||[],parts:[],history:[],sourceShift:values.sourceShift||null};
+  const r={readyConfirmed:false,id:uid(),number:repairNumber(),machine:values.machine,kind:values.kind||'repair',type:values.type,note:values.note||'',date:values.date||today(),dueDate:values.dueDate||'',createdAt:new Date().toISOString(),status:values.status||'new',priority:values.priority||'normal',assignee:values.assignee||repairUnassigned,blocking:values.kind==='repair'||!!values.blocking,reportedBy:workshopActor(),photos:values.photos||[],parts:[],history:[],sourceShift:values.sourceShift||null};
   recordRepairEvent(r,values.sourceShift?'Заявка создана из замечания к смене':'Заявка создана');
   return r;
 }
