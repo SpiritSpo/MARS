@@ -7,6 +7,19 @@ const rub=n=>Math.round(n).toLocaleString('ru-RU')+' ₽';
 const short=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n/1000000);
 const compact=n=>Math.abs(n)>=1e6?short(n)+' млн':Math.abs(n)>=1000?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n/1000)+' тыс.':String(n);
 const dateText=s=>s?new Date(s+'T12:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
+// Presentation only: validate recorded components without shifting wall time.
+function requestDateTimeText(value){
+ if(value===null||value===undefined||value==='')return '—';
+ if(typeof value!=='string')return 'Некорректная дата';
+ const match=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?$/.exec(value);
+ if(!match||match[0]!==value)return 'Некорректная дата';
+ const [,year,month,day,hour,minute,second,fraction,suffix]=match,y=Number(year),m=Number(month),d=Number(day);
+ const leap=y%4===0&&(y%100!==0||y%400===0),days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
+ if(y===0||m<1||m>12||d<1||d>days[m-1]||Number(hour)>23||Number(minute)>59||(second!==undefined&&Number(second)>59))return 'Некорректная дата';
+ if(suffix&&suffix!=='Z'&&(Number(suffix.slice(1,3))>23||Number(suffix.slice(4))>59))return 'Некорректная дата';
+ const time=hour+':'+minute+(second===undefined?'':':'+second+(fraction||''));
+ return day+'.'+month+'.'+year+', '+time+(suffix?(suffix==='Z'?' UTC':' UTC'+suffix):'');
+}
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Moscow'}).format(new Date());
 const uid=()=>globalThis.crypto?.randomUUID?.()||'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);
 const objects=[];
@@ -536,7 +549,7 @@ function requestsPage(){
   }).join('')+'</tr>';
  }).join('')+'</tbody></table></div></section>';
  return '<section class="panel"><div class="panel-head"><h2>Контроль всех заявок</h2></div><p>Всего заявок: <b>'+rows.length+'</b> · Требуют уточнения срока: <b>'+pending.length+'</b></p>'+pending.map(r=>'<p>Срок заканчивается: '+esc(r.number)+' · '+esc(r.customer)+' · '+requestOwnerHtml(r)+' <button type="button" class="btn small" data-request-open="'+esc(r.id)+'">'+(canEditRequest(r)?'Продлить / уточнить':'Подробнее')+'</button></p>').join('')+'</section>'+calendar+
- '<section class="panel"><div class="panel-head"><h2>Все заявки на технику</h2></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Номер</th><th>Заказчик / объект</th><th>Назначения</th><th>Статус / контроль</th><th>Ответственный менеджер</th><th></th></tr></thead><tbody>'+rows.slice().reverse().map(r=>'<tr><td>'+esc(r.number)+'</td><td>'+esc(r.customer)+' · '+esc(r.object)+'</td><td>'+requestAssignments(r).map(x=>esc(requestMachineText(x.machine,machineIndex))+' — '+esc(x.operator)+' ('+esc(x.start)+' — '+esc(x.end)+')').join('<br>')+'</td><td>'+esc(r.status)+' · '+esc(r.dispatchStage||'Этап не указан')+(r.releaseConfirmed?' · освобождена':'')+(r.followup?' · '+esc(r.followup):'')+'</td><td>'+requestOwnerHtml(r)+'</td><td><button type="button" class="btn small" data-request-open="'+esc(r.id)+'">'+(canEditRequest(r)?'Открыть':'Подробнее')+'</button></td></tr>').join('')+'</tbody></table></div></section>';
+ '<section class="panel"><div class="panel-head"><h2>Все заявки на технику</h2></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Номер</th><th>Заказчик / объект</th><th>Назначения</th><th>Статус / контроль</th><th>Ответственный менеджер</th><th></th></tr></thead><tbody>'+rows.slice().reverse().map(r=>'<tr><td>'+esc(r.number)+'</td><td>'+esc(r.customer)+' · '+esc(r.object)+'</td><td>'+requestAssignments(r).map(x=>esc(requestMachineText(x.machine,machineIndex))+' — '+esc(x.operator)+' ('+esc(requestDateTimeText(x.start))+' — '+esc(requestDateTimeText(x.end))+')').join('<br>')+'</td><td>'+esc(r.status)+' · '+esc(r.dispatchStage||'Этап не указан')+(r.releaseConfirmed?' · освобождена':'')+(r.followup?' · '+esc(r.followup):'')+'</td><td>'+requestOwnerHtml(r)+'</td><td><button type="button" class="btn small" data-request-open="'+esc(r.id)+'">'+(canEditRequest(r)?'Открыть':'Подробнее')+'</button></td></tr>').join('')+'</tbody></table></div></section>';
 }
 const requestAuditFields={dispatchStage:'Этап исполнения',customer:'Заказчик',object:'Объект',comment:'Комментарий',contact:'Контакт',phone:'Телефон',followup:'Результат уточнения',arrival:'Выход техники',releaseConfirmed:'Освобождение подтверждено',status:'Статус'};
 const requestItemText=x=>x?[requestMachineText(x.machine),x.operator,x.start,x.end].join(' / '):'—';
@@ -547,15 +560,22 @@ function requestChanges(before,after){
  for(let i=0;i<Math.max(a.length,b.length);i++){if(JSON.stringify(a[i]||null)!==JSON.stringify(b[i]||null))changes.push({field:'Назначение №'+(i+1),from:requestItemText(a[i]),to:requestItemText(b[i])});}
  return changes;
 }
+function requestHistoryValueText(field,value){
+ if(typeof field!=='string'||field.trim()!==field||!/^Назначение №[1-9]\d*$/.test(field)||typeof value!=='string'||value==='—')return value??'—';
+ const parts=value.split(' / ');
+ if(parts.length<4)return value;
+ const end=parts.pop(),start=parts.pop();
+ return parts.join(' / ')+' / '+requestDateTimeText(start)+' / '+requestDateTimeText(end);
+}
 function requestHistoryHtml(r){
  const history=Array.isArray(r?.history)?r.history.filter(h=>h&&typeof h==='object'&&!Array.isArray(h)):[];
- return '<section class="request-history"><h3>Журнал изменений</h3>'+(history.length?history.slice().reverse().map(h=>{const at=new Date(h.at),date=Number.isFinite(at.getTime())?at.toLocaleString('ru-RU'):(h.at||'Дата не указана'),changes=Array.isArray(h.changes)?h.changes.filter(c=>c&&typeof c==='object'&&!Array.isArray(c)):[];return '<div class="request-history-entry"><b>'+esc(h.by||'Неизвестно')+'</b> · '+esc(date)+'<br>'+esc(h.action||'Изменение')+'<br>Причина: '+esc(h.reason||'Не указана')+changes.map(c=>'<div><b>'+esc(c.field||'Изменение')+':</b> '+esc(c.from??'—')+' → '+esc(c.to??'—')+'</div>').join('')+'</div>';}).join(''):'<p class="page-note">Изменения ещё не записаны.</p>')+'</section>';
+ return '<section class="request-history"><h3>Журнал изменений</h3>'+(history.length?history.slice().reverse().map(h=>{const at=new Date(h.at),date=Number.isFinite(at.getTime())?at.toLocaleString('ru-RU'):(h.at||'Дата не указана'),changes=Array.isArray(h.changes)?h.changes.filter(c=>c&&typeof c==='object'&&!Array.isArray(c)):[];return '<div class="request-history-entry"><b>'+esc(h.by||'Неизвестно')+'</b> · '+esc(date)+'<br>'+esc(h.action||'Изменение')+'<br>Причина: '+esc(h.reason||'Не указана')+changes.map(c=>'<div><b>'+esc(c.field||'Изменение')+':</b> '+esc(requestHistoryValueText(c.field,c.from))+' → '+esc(requestHistoryValueText(c.field,c.to))+'</div>').join('')+'</div>';}).join(''):'<p class="page-note">Изменения ещё не записаны.</p>')+'</section>';
 }
 function requestDetails(id){
  if(!canViewRequests())return;
  const r=requestList().find(r=>r?.id===id);if(!r)return;
  const detail=(label,value)=>'<div><dt>'+esc(label)+'</dt><dd>'+esc(value??'—')+'</dd></div>',items=requestAssignments(r);
- showModal('Заявка '+(r.number||''),'<div class="request-details"><p class="page-note">Карточка заявки · только просмотр.</p><dl class="request-detail-grid">'+detail('Номер',r.number)+detail('Ответственный менеджер',r.owner)+detail('Заказчик',r.customer)+detail('Объект',r.object)+detail('Статус',r.status)+detail('Этап исполнения',r.dispatchStage)+detail('Выход техники',r.arrival)+detail('Фактическое освобождение',r.releaseConfirmed?'Подтверждено':'Не подтверждено')+detail('Результат уточнения',r.followup)+detail('Комментарий',r.comment||'—')+detail('Контакт заказчика',r.contact||'—')+detail('Телефон',r.phone||'—')+'</dl><h3>Назначения</h3>'+(items.length?items.map((x,i)=>'<section class="request-assignment"><h4>Назначение №'+(i+1)+'</h4><dl class="request-detail-grid">'+detail('Техника',requestMachineText(x.machine))+detail('Внутренний ID техники',x.machine)+detail('Машинист',x.operator)+detail('Начало',x.start)+detail('Окончание',x.end)+'</dl></section>').join(''):'<p class="page-note">Назначения не записаны.</p>')+requestHistoryHtml(r)+'<div class="modal-actions"><button type="button" class="btn" data-close>Закрыть</button></div></div>',true);
+ showModal('Заявка '+(r.number||''),'<div class="request-details"><p class="page-note">Карточка заявки · только просмотр.</p><dl class="request-detail-grid">'+detail('Номер',r.number)+detail('Ответственный менеджер',r.owner)+detail('Заказчик',r.customer)+detail('Объект',r.object)+detail('Статус',r.status)+detail('Этап исполнения',r.dispatchStage)+detail('Выход техники',r.arrival)+detail('Фактическое освобождение',r.releaseConfirmed?'Подтверждено':'Не подтверждено')+detail('Результат уточнения',r.followup)+detail('Комментарий',r.comment||'—')+detail('Контакт заказчика',r.contact||'—')+detail('Телефон',r.phone||'—')+'</dl><h3>Назначения</h3>'+(items.length?items.map((x,i)=>'<section class="request-assignment"><h4>Назначение №'+(i+1)+'</h4><dl class="request-detail-grid">'+detail('Техника',requestMachineText(x.machine))+detail('Внутренний ID техники',x.machine)+detail('Машинист',x.operator)+detail('Начало',requestDateTimeText(x.start))+detail('Окончание',requestDateTimeText(x.end))+'</dl></section>').join(''):'<p class="page-note">Назначения не записаны.</p>')+requestHistoryHtml(r)+'<div class="modal-actions"><button type="button" class="btn" data-close>Закрыть</button></div></div>',true);
 }
 function requestModal(id){
  if(!canViewRequests())return;

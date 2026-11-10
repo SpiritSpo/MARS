@@ -138,7 +138,7 @@ function repairBookingWarnings(repair,requests,now) {
 function repairBookingWarningHtml(rows) {
   if(!rows.length)return '';
   const labels={overlap:'Пересечение с записанным периодом ремонта','after-due':'После планового срока: техническая готовность ещё не подтверждена',unknown:'Период ремонта требует уточнения; техническая готовность ещё не подтверждена'};
-  return '<strong>У техники есть активные назначения</strong><p>Согласуйте занятость с ответственным менеджером. Сохранение ремонта не изменяет заявки. Плановый срок не подтверждает допуск техники к эксплуатации.</p><ul>'+rows.map(({request,item,kind})=>'<li><b>'+esc(request.number||'Номер не указан')+'</b> · '+esc(request.owner||'Менеджер не указан')+' · '+esc(request.customer||'Заказчик не указан')+' · '+esc(item.start)+' — '+esc(item.end)+'<br>'+esc(labels[kind])+'</li>').join('')+'</ul>';
+  return '<strong>У техники есть активные назначения</strong><p>Согласуйте занятость с ответственным менеджером. Сохранение ремонта не изменяет заявки. Плановый срок не подтверждает допуск техники к эксплуатации.</p><ul>'+rows.map(({request,item,kind})=>'<li><b>'+esc(request.number||'Номер не указан')+'</b> · '+esc(request.owner||'Менеджер не указан')+' · '+esc(request.customer||'Заказчик не указан')+' · '+esc(requestDateTimeText(item.start))+' — '+esc(requestDateTimeText(item.end))+'<br>'+esc(labels[kind])+'</li>').join('')+'</ul>';
 }
 
 function repairBookingWarningBox(id,rows) {

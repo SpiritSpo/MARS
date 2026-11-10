@@ -53,9 +53,10 @@ for(const mode of ['demo','working']){
       assert.equal(a.run('canEditRequest('+JSON.stringify(r)+')'),false);
       for(const entry of ['requestModal','requestDetails']){
         a.run(entry+'('+JSON.stringify(r.id)+')');const card=modal(a);
+        const displayedTimes=r.id==='future'?['09.11.2026, 09:00','09.11.2026, 18:00']:['07.11.2026, 08:00','07.11.2026, 17:00'];
         for(const value of [r.number,r.owner,r.customer,r.object,r.contact,r.phone,
-          r.status,r.dispatchStage,r.arrival,r.followup,r.items[0].operator,r.items[0].start,
-          r.items[0].end,'Сохраняемый автор','Согласовано с заказчиком','Первый'])assert.ok(card.includes(value),value);
+          r.status,r.dispatchStage,r.arrival,r.followup,r.items[0].operator,...displayedTimes,
+          'Сохраняемый автор','Согласовано с заказчиком','Первый'])assert.ok(card.includes(value),value);
         assert.match(card,/Комментарий &lt;клиента&gt;/);
         assert.match(card,/Фактическое освобождение/);assert.match(card,/Журнал изменений/);
         assert.doesNotMatch(card,/<(?:form|input|select|textarea)\b|type="submit"|Сохранить|Удалить/);
