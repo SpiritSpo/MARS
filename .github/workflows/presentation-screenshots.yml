@@ -79,7 +79,7 @@ jobs:
                   info("Captured "+name)
               def role(value):
                   page.locator("#role").select_option(value)
-                  page.wait_for_timeout(500)
+                  page.wait_for_timeout(4600)
               def go(section):
                   page.evaluate("(section)=>go(section)",section)
                   page.wait_for_timeout(250)
