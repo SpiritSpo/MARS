@@ -134,3 +134,5 @@ jobs:
           name: mars-presentation-screenshots
           path: presentation_captures/
           if-no-files-found: error
+
+# Capture only; not for production deployment.
