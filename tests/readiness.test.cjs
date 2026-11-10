@@ -178,8 +178,10 @@ test('Unreadable working data cannot be overwritten by direct or workshop saves'
 test('Fresh empty catalogs do not imply available equipment and have no calendar sample rows',()=>{
  const a=workspace();a.run('role="director";period="all";syncMachineStatuses();');
  assert.equal(a.run('machines.some(m=>["free","work","reserved","repair"].includes(m.status))'),false);
- const operational=values(a.run('dashboardPage()'))[4];
- assert.match(operational,/—|[Нн]ет данных/);
+ const dashboard=a.run('dashboardPage()');
+ const operational=dashboard.slice(dashboard.indexOf('director-operational'));
+ assert.match(operational,/Отработали сегодня[\s\S]*?class="stat-value">Нет данных<\/div>/);
+ assert.match(operational,/Свободны<\/span><strong>Нет данных<\/strong>/);
  a.run('role="dispatcher";');
  const manager=a.run('managerOverview()');
  assert.match(manager,/Свободно техники<\/span><strong>Нет данных<\/strong>/);

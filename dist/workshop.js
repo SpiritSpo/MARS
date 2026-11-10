@@ -113,8 +113,51 @@ function calendarRepairLimitations(r,bounds,now) {
   return notes.join(' ');
 }
 
+// Repair days include the due day; assignments keep their existing strict,
+// half-open intervals. This projection never changes requests or availability.
+function repairBookingWarnings(repair,requests,now) {
+  if(!repair?.machine||!Array.isArray(requests))return [];
+  const bounds=calendarRepairBounds(repair,now);
+  if(!bounds.current)return [];
+  const start=bounds.start?bounds.start+'T00:00':'';
+  let end='';
+  if(bounds.due){const next=new Date(bounds.due+'T00:00:00Z');next.setUTCDate(next.getUTCDate()+1);end=next.toISOString().slice(0,10)+'T00:00';}
+  const recorded=Boolean(start&&end&&!bounds.contradictory),rows=[];
+  for(const request of requests) {
+    if(!request||request.status==='Отменена'||request.releaseConfirmed||!Array.isArray(request.items))continue;
+    for(const item of request.items) {
+      if(!item||item.machine!==repair.machine||!calendarRepairRecordedDay(item.start)||!calendarRepairRecordedDay(item.end)||item.start>=item.end)continue;
+      const overlaps=recorded&&item.start<end&&start<item.end;
+      const uncertain=!repair.readyConfirmed&&item.end>now+'T00:00'&&(!recorded||item.end>end);
+      if(overlaps||uncertain)rows.push({request,item,kind:overlaps?'overlap':recorded?'after-due':'unknown'});
+    }
+  }
+  return rows;
+}
+
+function repairBookingWarningHtml(rows) {
+  if(!rows.length)return '';
+  const labels={overlap:'Пересечение с записанным периодом ремонта','after-due':'После планового срока: техническая готовность ещё не подтверждена',unknown:'Период ремонта требует уточнения; техническая готовность ещё не подтверждена'};
+  return '<strong>У техники есть активные назначения</strong><p>Согласуйте занятость с ответственным менеджером. Сохранение ремонта не изменяет заявки. Плановый срок не подтверждает допуск техники к эксплуатации.</p><ul>'+rows.map(({request,item,kind})=>'<li><b>'+esc(request.number||'Номер не указан')+'</b> · '+esc(request.owner||'Менеджер не указан')+' · '+esc(request.customer||'Заказчик не указан')+' · '+esc(item.start)+' — '+esc(item.end)+'<br>'+esc(labels[kind])+'</li>').join('')+'</ul>';
+}
+
+function repairBookingWarningBox(id,rows) {
+  return '<div id="'+id+'" class="info-note" aria-live="polite"'+(rows.length?'':' hidden')+'>'+repairBookingWarningHtml(rows)+'</div>';
+}
+
+function bindRepairBookingWarning(form,selector,proposed) {
+  const refresh=values=>{
+    const fields=values&&typeof values.get==='function'?values:new FormData(form);
+    const box=$(selector),rows=repairBookingWarnings(proposed(fields),state.equipmentRequests,today());
+    box.innerHTML=repairBookingWarningHtml(rows);box.hidden=!rows.length;
+  };
+  form.addEventListener('input',refresh);
+  form.addEventListener('change',refresh);
+  return refresh;
+}
+
 function openCalendarRepairs(machineId,day='') {
-  if(!['director','dispatcher'].includes(role)||typeof machineId!=='string'||!machineId)return;
+  if(!['director','dispatcher','mechanic'].includes(role)||typeof machineId!=='string'||!machineId)return;
   if(day&&!calendarRepairDay(day))return;
   const now=today();
   const rows=state.maintenance.filter(r=>r&&r.machine===machineId).map(r=>({r,bounds:calendarRepairBounds(r,now)})).filter(({bounds})=>bounds.current||Boolean(day&&bounds.factual&&bounds.actualStart<=day&&day<=bounds.end));
@@ -227,11 +270,14 @@ function newRepairRecord(values) {
 
 function repairForm(machineId='') {if(!canManageRepairs())return;
   if(!visibleMachines().length)return toast('Сначала загрузите справочник техники.');
-  showModal('Новая заявка',`<form id="repair-form">${field('Техника',machineSelect('machine',machineId,visibleMachines()))}<div class="form-grid">${field('Вид заявки','<select name="kind"><option value="repair">Неисправность / ремонт</option><option value="service">Плановое ТО</option></select>')}${field('Приоритет','<select name="priority"><option value="normal">Обычный</option><option value="high">Высокий</option></select>')}</div>${field('Что нужно сделать?','<input name="type" required maxlength="100" placeholder="Например, устранить течь гидравлики">')}${field('Описание неисправности','<textarea name="note" required maxlength="500" placeholder="Что произошло и при каких условиях"></textarea>')}<div class="form-grid">${field('Ответственный',`<select name="assignee">${repairAssignees().map(n=>`<option>${esc(n)}</option>`).join('')}</select>`)}${field('Плановый срок',`<input name="dueDate" type="date" value="${today()}" min="${today()}" required>`)}</div><label class="workshop-checkbox"><input type="checkbox" name="blocking">Техника остановлена до завершения ремонта</label>${photoPicker('repair-photos')}${formActions('Создать заявку')}<p class="form-hint">Запись хранится только в этом браузере. Уведомления сотрудникам не отправляются.</p></form>`,true);
+  if(!visibleMachines().some(m=>m.id===machineId))machineId=visibleMachines()[0].id;
+  showModal('Новая заявка',`<form id="repair-form">${field('Техника',machineSelect('machine',machineId,visibleMachines()))}<div class="form-grid">${field('Вид заявки','<select name="kind"><option value="repair">Неисправность / ремонт</option><option value="service">Плановое ТО</option></select>')}${field('Приоритет','<select name="priority"><option value="normal">Обычный</option><option value="high">Высокий</option></select>')}</div>${field('Что нужно сделать?','<input name="type" required maxlength="100" placeholder="Например, устранить течь гидравлики">')}${field('Описание неисправности','<textarea name="note" required maxlength="500" placeholder="Что произошло и при каких условиях"></textarea>')}<div class="form-grid">${field('Ответственный',`<select name="assignee">${repairAssignees().map(n=>`<option>${esc(n)}</option>`).join('')}</select>`)}${field('Плановый срок',`<input name="dueDate" type="date" value="${today()}" min="${today()}" required>`)}</div><label class="workshop-checkbox"><input type="checkbox" name="blocking">Техника остановлена до завершения ремонта</label>${repairBookingWarningBox('repair-booking-warning',repairBookingWarnings({machine:machineId,date:today(),dueDate:today()},state.equipmentRequests,today()))}${photoPicker('repair-photos')}${formActions('Создать заявку')}<p class="form-hint">Запись хранится только в этом браузере. Уведомления сотрудникам не отправляются.</p></form>`,true);
   const draft=attachPhotoPicker('repair-photos');
+  const refreshBookingWarning=bindRepairBookingWarning($('#repair-form'),'#repair-booking-warning',f=>({machine:f.get('machine'),date:today(),dueDate:f.get('dueDate')}));
   $('#repair-form').onsubmit=e => {
-    e.preventDefault();if(draft.busy)return formError('Дождитесь подготовки фотографий.');
+    e.preventDefault();if(!canManageRepairs())return;if(draft.busy)return formError('Дождитесь подготовки фотографий.');
     const f=new FormData(e.target),type=f.get('type').trim(),note=f.get('note').trim();
+    refreshBookingWarning(f);
     if(!type||!note)return formError('Укажите название и описание работ.');
     if(!visibleMachines().some(m=>m.id===f.get('machine')))return formError('Выберите технику из справочника.');
     if(f.get('dueDate')<today())return formError('Срок новой заявки не может быть в прошлом.');
@@ -251,16 +297,18 @@ function openRepair(id) {
   const next={new:['new','planned','progress'],planned:['planned','progress'],progress:['progress','waiting'],waiting:['waiting','progress']}[r.status]||[];
   const manage=canManageRepairs()&&r.status!=='done'&&!!machine(r.machine);
    const needsRelease=role==='mechanic'&&r.status==='done'&&r.blocking&&!r.readyConfirmed;
-  showModal(`${r.number} · ${r.kind==='service'?'Обслуживание':'Заявка на ремонт'}`,`<div class="workshop-detail-top">${repairTag(r)}</div><h2 class="repair-detail-title">${esc(r.type)}</h2><button class="table-link" id="repair-passport">${esc(machineLabel(r.machine))} · ${r.machine} ${icon('arrow')}</button><p class="repair-detail-note">${esc(r.note)}</p><dl class="spec-grid"><div><dt>Объект</dt><dd>${esc(objectLabel(machine(r.machine)?.object))}</dd></div><div><dt>Сообщил</dt><dd>${esc(r.reportedBy)}</dd></div><div><dt>Ответственный</dt><dd>${esc(r.assignee)}</dd></div><div><dt>Плановый срок</dt><dd class="${repairLate(r)?'negative':''}">${dateText(r.dueDate)}${repairLate(r)?' · срок прошёл':''}</dd></div><div><dt>Приоритет</dt><dd>${r.priority==='high'?'Высокий':'Обычный'}</dd></div><div><dt>Состояние техники</dt><dd>${r.readyConfirmed?'Готовность подтверждена механиком':r.blocking?'Эксплуатация запрещена до допуска механика':'Остановка не отмечена'}</dd></div></dl>${r.sourceShift?'<div class="info-note">Создана из замечания машиниста к смене. Заявка не означает, что смена утверждена.</div>':''}${r.photos.length?`<h3 class="workshop-section-title">Фотографии</h3><div class="repair-gallery">${photoGallery(r.photos)}</div>`:''}${r.status==='done'?`<div class="repair-result"><h3>Результат работ</h3><p>${esc(r.resultNote||'Результат работ не указан.')}</p>${canManageRepairs()?`<strong>${rub(repairTotal(r))}</strong><small>${r.financeOperationId?'Учтено одной операцией в разделе «Финансы»':'Стоимость не вносилась'}</small>`:''}${r.parts.length?`<p>Выдано со склада: ${r.parts.map(p=>`${esc(p.name)} — ${p.qty} ${esc(p.unit)}`).join('; ')}.</p>`:''}</div>`:''}${needsRelease?'<button class="btn primary" id="repair-release">Подтвердить исправность и допустить к эксплуатации</button>':''}${manage?`<form id="repair-update-form" class="workshop-update"><h3>Ведение заявки</h3><div class="form-grid">${field('Статус',`<select name="status">${next.map(v=>`<option value="${v}" ${v===r.status?'selected':''}>${repairStatusNames[v]}</option>`).join('')}</select>`)}${field('Ответственный',`<select name="assignee">${repairAssignees().map(n=>`<option ${n===r.assignee?'selected':''}>${esc(n)}</option>`).join('')}</select>`)}</div>${field('Плановый срок',`<input name="dueDate" type="date" value="${r.dueDate}" required>`)}<label class="workshop-checkbox"><input type="checkbox" name="blocking" ${r.blocking?'checked':''}>Техника остановлена до завершения ремонта</label>${field('Комментарий к изменению','<textarea name="comment" maxlength="400" placeholder="Результат диагностики, причина ожидания или следующий шаг"></textarea>')}${photoPicker('update-photos')}${formActions('Сохранить изменения')}</form>${['progress','waiting'].includes(r.status)?'<button class="btn primary workshop-complete" id="repair-complete">Завершить ремонт</button>':'<p class="form-hint">Для завершения сначала примите заявку в работу.</p>'}`:''}<h3 class="workshop-section-title">История заявки</h3>${historyMarkup(r.history)}<div class="modal-actions"><button class="btn" data-close>Закрыть</button></div>`,true);
+  showModal(`${r.number} · ${r.kind==='service'?'Обслуживание':'Заявка на ремонт'}`,`<div class="workshop-detail-top">${repairTag(r)}</div><h2 class="repair-detail-title">${esc(r.type)}</h2><button class="table-link" id="repair-passport">${esc(machineLabel(r.machine))} · ${r.machine} ${icon('arrow')}</button><p class="repair-detail-note">${esc(r.note)}</p><dl class="spec-grid"><div><dt>Объект</dt><dd>${esc(objectLabel(machine(r.machine)?.object))}</dd></div><div><dt>Сообщил</dt><dd>${esc(r.reportedBy)}</dd></div><div><dt>Ответственный</dt><dd>${esc(r.assignee)}</dd></div><div><dt>Плановый срок</dt><dd class="${repairLate(r)?'negative':''}">${dateText(r.dueDate)}${repairLate(r)?' · срок прошёл':''}</dd></div><div><dt>Приоритет</dt><dd>${r.priority==='high'?'Высокий':'Обычный'}</dd></div><div><dt>Состояние техники</dt><dd>${r.readyConfirmed?'Готовность подтверждена механиком':r.blocking?'Эксплуатация запрещена до допуска механика':'Остановка не отмечена'}</dd></div></dl>${r.sourceShift?'<div class="info-note">Создана из замечания машиниста к смене. Заявка не означает, что смена утверждена.</div>':''}${r.photos.length?`<h3 class="workshop-section-title">Фотографии</h3><div class="repair-gallery">${photoGallery(r.photos)}</div>`:''}${r.status==='done'?`<div class="repair-result"><h3>Результат работ</h3><p>${esc(r.resultNote||'Результат работ не указан.')}</p>${canManageRepairs()?`<strong>${rub(repairTotal(r))}</strong><small>${r.financeOperationId?'Учтено одной операцией в разделе «Финансы»':'Стоимость не вносилась'}</small>`:''}${r.parts.length?`<p>Выдано со склада: ${r.parts.map(p=>`${esc(p.name)} — ${p.qty} ${esc(p.unit)}`).join('; ')}.</p>`:''}</div>`:''}${needsRelease?'<button class="btn primary" id="repair-release">Подтвердить исправность и допустить к эксплуатации</button>':''}${manage?`<form id="repair-update-form" class="workshop-update"><h3>Ведение заявки</h3><div class="form-grid">${field('Статус',`<select name="status">${next.map(v=>`<option value="${v}" ${v===r.status?'selected':''}>${repairStatusNames[v]}</option>`).join('')}</select>`)}${field('Ответственный',`<select name="assignee">${repairAssignees().map(n=>`<option ${n===r.assignee?'selected':''}>${esc(n)}</option>`).join('')}</select>`)}</div>${field('Плановый срок',`<input name="dueDate" type="date" value="${r.dueDate}" required>`)}<label class="workshop-checkbox"><input type="checkbox" name="blocking" ${r.blocking?'checked':''}>Техника остановлена до завершения ремонта</label>${field('Комментарий к изменению','<textarea name="comment" maxlength="400" placeholder="Результат диагностики, причина ожидания или следующий шаг"></textarea>')}${repairBookingWarningBox('repair-update-booking-warning',repairBookingWarnings(r,state.equipmentRequests,today()))}${photoPicker('update-photos')}${formActions('Сохранить изменения')}</form>${['progress','waiting'].includes(r.status)?'<button class="btn primary workshop-complete" id="repair-complete">Завершить ремонт</button>':'<p class="form-hint">Для завершения сначала примите заявку в работу.</p>'}`:''}<h3 class="workshop-section-title">История заявки</h3>${historyMarkup(r.history)}<div class="modal-actions"><button class="btn" data-close>Закрыть</button></div>`,true);
   $('#repair-passport').onclick=()=>openMachinePassport(r.machine,'history');
   $('#repair-complete')?.addEventListener('click',()=>completeRepairForm(r.id));
    $('#repair-release')?.addEventListener('click',()=>{const r=visibleRepairs().find(x=>x.id===id);if(role!=='mechanic'||!r||r.status!=='done'||r.readyConfirmed)return;const previous=structuredClone(state);r.readyConfirmed=true;r.blocking=false;r.releasedAt=new Date().toISOString();r.releasedBy=workshopActor();recordRepairEvent(r,'Исправность проверена. Допуск к эксплуатации подтверждён');if(!saveWorkshop(previous))return;render();openRepair(r.id);toast('Техника допущена к эксплуатации.');});
   if(manage) {
     const draft=attachPhotoPicker('update-photos',r.photos);
+    const refreshBookingWarning=bindRepairBookingWarning($('#repair-update-form'),'#repair-update-booking-warning',f=>({...state.maintenance.find(x=>x.id===id),dueDate:f.get('dueDate')}));
     $('#repair-update-form').onsubmit=e=>{
-      e.preventDefault();if(draft.busy)return formError('Дождитесь подготовки фотографий.');
+      e.preventDefault();if(!canManageRepairs())return;if(draft.busy)return formError('Дождитесь подготовки фотографий.');
       const r=visibleRepairs().find(x=>x.id===id);if(!r||r.status==='done')return;
       const f=new FormData(e.target),nextStatus=f.get('status'),assignee=f.get('assignee'),comment=f.get('comment').trim();
+      refreshBookingWarning(f);
       if(nextStatus!=='new'&&assignee===repairUnassigned)return formError('Назначьте ответственного механика.');
       if(nextStatus==='waiting'&&r.status!=='waiting'&&!comment)return formError('Укажите, какие запчасти ожидаются.');
       const changes=[];
@@ -305,7 +353,7 @@ function completeRepairForm(id) {
   form.onsubmit=e=>{
     e.preventDefault();
     // A failed save restores cloned records, so a retry must resolve the current repair.
-    const r=state.maintenance.find(x=>x.id===id);if(!r||!['progress','waiting'].includes(r.status))return;
+    const r=state.maintenance.find(x=>x.id===id);if(!canManageRepairs()||!r||!['progress','waiting'].includes(r.status))return;
     const f=new FormData(form),result=f.get('result').trim(),labor=Number(f.get('labor')),external=Number(f.get('external'));
     if(!result)return formError('Опишите выполненные работы.');
     if(r.assignee===repairUnassigned)return formError('Сначала назначьте механика в заявке.');

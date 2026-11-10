@@ -156,7 +156,7 @@ for(const mode of ['demo','working']){
     for(const role of ['director','dispatcher','mechanic','operator','accountant']){
       a.run('role='+JSON.stringify(role)+';requestModal("request-that-does-not-exist");requestDetails("request-that-does-not-exist");');
       assert.equal(a.modalOpen(),false);assertUnchanged(a,before);
-      if(!['director','dispatcher'].includes(role)){
+      if(!['director','dispatcher','mechanic'].includes(role)){
         a.run('requestModal('+JSON.stringify(requestIds[0])+');requestDetails('+JSON.stringify(requestIds[0])+')');
         assert.equal(a.modalOpen(),false);assertUnchanged(a,before);
       }
