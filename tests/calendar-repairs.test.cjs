@@ -100,7 +100,9 @@ test('repair details include every current record and matching closed records, e
   a.run(`openCalendarRepairs(${JSON.stringify(asset)},'2026-02-29');`);
   assert.equal(a.form('#modal-root').innerHTML,html,'Invalid days cannot select a different history');
   a.run(`role='mechanic';openCalendarRepairs(${JSON.stringify(asset)});`);
-  assert.equal(a.form('#modal-root').innerHTML,html,'Only director and dispatcher open calendar cards');
+  assert.equal((a.form('#modal-root').innerHTML.match(/class="calendar-repair-card"/g)||[]).length,3,'Mechanics can view current calendar repair cards');
+  assert.doesNotMatch(a.form('#modal-root').innerHTML,/<form|<input|<select|<textarea|repair-release|repair-complete/);
+  assert.deepEqual(a.state(),before);assert.equal(a.attempts.length,attempts);
   a.run(`role='dispatcher';openCalendarRepairs(${JSON.stringify(asset)});`);
   assert.equal((a.form('#modal-root').innerHTML.match(/class="calendar-repair-card"/g)||[]).length,3);
 });
