@@ -234,6 +234,7 @@ def manager_story(s):
     assert s.page.locator(".request-details").is_visible()
     assert s.page.locator(".modal input,.modal select,.modal textarea,.modal form").count() == 0
     assert all(text in s.page.locator(".request-details").inner_text() for text in [MANAGERS[0], record["number"], "M002", "Синтетический контакт", "+7 000", "Журнал изменений"])
+    assert s.page.locator(".request-assignment dd").all_inner_texts()[-2:] == [datetime.fromisoformat(record["items"][0][key]).strftime("%d.%m.%Y, %H:%M") for key in ["start", "end"]]
     s.geometry(modal=True, targets=True)
     s.close_modal()
     assert s.state() == before and s.stored() == stored
@@ -248,6 +249,7 @@ def manager_story(s):
         assert s.page.locator(f"[data-request-open='{request['id']}']").count() > 0
     s.page.locator(f".request-calendar-booking[data-request-open='{record['id']}']").click()
     assert s.page.locator(".request-details").is_visible()
+    assert s.page.locator(".request-assignment dd").all_inner_texts()[-2:] == [datetime.fromisoformat(record["items"][0][key]).strftime("%d.%m.%Y, %H:%M") for key in ["start", "end"]]
     assert s.page.locator(".modal input,.modal select,.modal textarea,.modal form").count() == 0
     s.close_modal()
     before, stored = s.state(), s.stored()

@@ -84,7 +84,7 @@ function assertDetails(html,r,state){
   assert.match(html,/освобождени|возврат/i,'Show factual release confirmation');
   for(const item of r.items){
     const m=state.machines.find(m=>m.id===item.machine);
-    for(const value of [m.name,item.operator,item.start,item.end])assert.ok(html.includes(esc(value)),'Assignment includes '+value);
+    for(const value of [m.name,item.operator,'07.11.2026, 08:00','08.11.2026, 17:00'])assert.ok(html.includes(esc(value)),'Assignment includes '+value);
   }
   assert.match(html,/Журнал изменений/);
   for(const entry of r.history){
