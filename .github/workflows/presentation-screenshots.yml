@@ -1,0 +1,133 @@
+name: MARS presentation captures (isolated)
+on:
+  push:
+    branches:
+      - visuals/presentation-screens-20261110
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install playwright==1.55.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Capture exact desktop browser screens
+        shell: bash
+        run: |
+          cat > /tmp/capture.py <<'PY'
+          import os, sys, time, threading, functools
+          from pathlib import Path
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          from datetime import datetime, timezone
+          from playwright.sync_api import sync_playwright
+          
+          OUT=Path("presentation_captures")
+          OUT.mkdir(exist_ok=True)
+          LIVE="https://spiritspo-mars-59bc.twc1.net/"
+          version="Timeweb"
+          server=None
+          def info(msg):
+              print(msg,flush=True)
+          
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True,args=["--no-sandbox"])
+              ctx=browser.new_context(viewport={"width":1600,"height":960},device_scale_factor=1.5,locale="ru-RU",timezone_id="Europe/Moscow",color_scheme="light")
+              page=ctx.new_page()
+              page.set_default_timeout(14000)
+              try:
+                  page.clock.install(time=datetime(2026,11,10,12,tzinfo=timezone.utc))
+              except Exception as e:
+                  info("clock install warning: "+str(e))
+              try:
+                  page.goto(LIVE,wait_until="domcontentloaded",timeout=24000)
+                  page.locator("#app .layout").wait_for(timeout=14000)
+                  if not page.evaluate("typeof requestDateTimeText==='function'"): raise RuntimeError("Site not on target version main")
+                  info("CAPTURE SOURCE: LIVE Timeweb")
+              except Exception as e:
+                  info("Live Timeweb inaccessible or not current: "+str(e))
+                  Handler=functools.partial(SimpleHTTPRequestHandler,directory=str(Path("dist").resolve()))
+                  server=ThreadingHTTPServer(("127.0.0.1",8765),Handler)
+                  threading.Thread(target=server.serve_forever,daemon=True).start()
+                  ctx.close()
+                  ctx=browser.new_context(viewport={"width":1600,"height":960},device_scale_factor=1.5,locale="ru-RU",timezone_id="Europe/Moscow",color_scheme="light")
+                  page=ctx.new_page()
+                  page.set_default_timeout(14000)
+                  try:page.clock.install(time=datetime(2026,11,10,12,tzinfo=timezone.utc))
+                  except:pass
+                  page.goto("http://127.0.0.1:8765/",wait_until="domcontentloaded",timeout=30000)
+                  page.locator("#app .layout").wait_for(timeout=16000)
+                  version="local-main"
+                  info("CAPTURE SOURCE: EXACT MAIN LOCAL STATIC PREVIEW")
+          
+              def snap(name,anchor=None,modal=False):
+                  if anchor:
+                      try:
+                          page.locator(anchor).first.evaluate("(e)=>e.scrollIntoView({block:'start',behavior:'instant'})")
+                      except Exception as e: info("anchor "+name+": "+str(e))
+                  elif not modal:
+                      page.evaluate("window.scrollTo({top:0,behavior:'instant'})")
+                  page.wait_for_timeout(450)
+                  page.screenshot(path=str(OUT/(name+".png")),full_page=False,animations="disabled")
+                  info("Captured "+name)
+              def role(value):
+                  page.locator("#role").select_option(value)
+                  page.wait_for_timeout(500)
+              def go(section):
+                  page.evaluate("(section)=>go(section)",section)
+                  page.wait_for_timeout(250)
+              def modal(js):
+                  page.evaluate(js)
+                  page.wait_for_timeout(220)
+              def close():
+                  page.evaluate("closeModal(false)")
+          
+              snap("01_director_dashboard")
+              snap("02_director_fleet_overview", "text=Парк и работа сегодня")
+              role("dispatcher:Алексей Иванов")
+              snap("03_manager_alexey_top")
+              snap("04_manager_alexey_calendar",".requests-calendar")
+              modal("requestModal('req-0001')")
+              snap("05_manager_own_edit",modal=True)
+              close()
+              modal("requestModal('req-0002')")
+              snap("06_manager_other_readonly",modal=True)
+              close()
+              role("dispatcher:Дмитрий Петров")
+              snap("07_manager_dmitry_calendar",".requests-calendar")
+              modal("requestModal('req-0002')")
+              snap("08_manager_dmitry_own_edit",modal=True)
+              close()
+              role("mechanic")
+              snap("09_mechanic_repairs")
+              go("requests")
+              snap("10_mechanic_all_requests")
+              snap("11_mechanic_calendar",".requests-calendar")
+              go("maintenance")
+              page.evaluate("repairForm('M005')")
+              page.locator("#repair-form [name=dueDate]").fill("2026-11-13")
+              snap("12_mechanic_repair_conflict","#repair-booking-warning",modal=True)
+              close()
+              role("accountant")
+              snap("13_accountant_import")
+              page.locator("[data-accountant-tab=allocation]").click()
+              snap("14_accountant_allocation")
+              page.locator("[data-accountant-tab=history]").click()
+              snap("15_accountant_import_history")
+              (OUT/"SOURCE.txt").write_text("Source: "+version+"\nGit main 83276651cecb8d8ff6ae46c55f655803a6d61f69\nScreenshot date: 2026-11-10 frozen demo context\n",encoding="utf-8")
+              ctx.close()
+              browser.close()
+              if server:server.shutdown()
+          
+          PY
+          python /tmp/capture.py
+      - name: Save screenshots as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mars-presentation-screenshots
+          path: presentation_captures/
+          if-no-files-found: error
